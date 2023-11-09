@@ -1,0 +1,23 @@
+﻿{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "0.1",
+	"FriendlyName": "MGFX",
+	"Description": "A motion graphics toolset for authoring shape based graphics and animations.",
+	"Category": "Other",
+	"CreatedBy": "Bohdon Sayre",
+	"CreatedByURL": "https://bohdon.com",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"CanContainContent": true,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "MGFX",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	]
+}
