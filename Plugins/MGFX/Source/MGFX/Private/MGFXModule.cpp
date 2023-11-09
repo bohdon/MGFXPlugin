@@ -2,6 +2,7 @@
 
 #include "MGFXModule.h"
 
+
 #define LOCTEXT_NAMESPACE "FMGFXModule"
 
 void FMGFXModule::StartupModule()

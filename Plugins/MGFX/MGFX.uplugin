@@ -18,6 +18,11 @@
 			"Name": "MGFX",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "MGFXEditor",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
 		}
 	]
 }
