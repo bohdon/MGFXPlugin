@@ -17,4 +17,8 @@ class MGFX_API UMGFXMaterial : public UObject
 
 public:
 	UMGFXMaterial();
+
+	/** The generated material asset being edited. */
+	UPROPERTY(EditAnywhere)
+	TObjectPtr<UMaterial> GeneratedMaterial;
 };

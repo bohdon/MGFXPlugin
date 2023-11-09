@@ -26,4 +26,6 @@ public:
 		static const auto Categories = {EAssetCategoryPaths::Material};
 		return Categories;
 	}
+
+	virtual EAssetCommandResult OpenAssets(const FAssetOpenArgs& OpenArgs) const override;
 };
