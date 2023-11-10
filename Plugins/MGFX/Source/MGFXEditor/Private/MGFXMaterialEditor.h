@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "IMGFXMaterialEditor.h"
 
+class IMaterialEditor;
 class UMGFXMaterial;
 
 
@@ -39,6 +40,15 @@ private:
 
 	TSharedRef<SDockTab> SpawnTab_Canvas(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_Details(const FSpawnTabArgs& Args);
+
+	/** Delete all non-root nodes from a material graph. */
+	void Generate_DeleteAllNodes(IMaterialEditor* MaterialEditor, UMaterialGraph* MaterialGraph);
+
+	/** Add a generated warning comment to prevent user modification. */
+	void Generate_AddWarningComment(IMaterialEditor* MaterialEditor, UMaterialGraph* MaterialGraph);
+
+	/** Create boilerplate UVs based on desired canvas size. */
+	void Generate_AddUVsBoilerplate(IMaterialEditor* MaterialEditor, UMaterialGraph* MaterialGraph);
 
 public:
 	static const FName DetailsTabId;
