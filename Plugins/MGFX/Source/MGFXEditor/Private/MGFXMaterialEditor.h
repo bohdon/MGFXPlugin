@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "IMGFXMaterialEditor.h"
 
+class UMaterialExpressionNamedRerouteDeclaration;
 class IMaterialEditor;
 class UMGFXMaterial;
 
@@ -50,7 +51,14 @@ private:
 	/** Create boilerplate UVs based on desired canvas size. */
 	void Generate_AddUVsBoilerplate(IMaterialEditor* MaterialEditor, UMaterialGraph* MaterialGraph);
 
+	/** Generate all shape layers and combine them. */
+	void Generate_Shapes(IMaterialEditor* MaterialEditor, UMaterialGraph* MaterialGraph);
+
+	/** Find and return a named reroute declaration by name. */
+	UMaterialExpressionNamedRerouteDeclaration* FindNamedReroute(UMaterialGraph* MaterialGraph, FName Name) const;
+
 public:
 	static const FName DetailsTabId;
 	static const FName CanvasTabId;
+	static const int32 GridSize;
 };

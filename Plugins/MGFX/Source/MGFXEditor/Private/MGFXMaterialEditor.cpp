@@ -9,15 +9,20 @@
 #include "MGFXMaterial.h"
 #include "MGFXMaterialEditorCommands.h"
 #include "MaterialGraph/MaterialGraph.h"
+#include "MaterialGraph/MaterialGraphNode.h"
 #include "Materials/MaterialExpressionAppendVector.h"
 #include "Materials/MaterialExpressionComment.h"
-#include "Materials/MaterialExpressionConstant3Vector.h"
 #include "Materials/MaterialExpressionMultiply.h"
 #include "Materials/MaterialExpressionNamedReroute.h"
 #include "Materials/MaterialExpressionScalarParameter.h"
 #include "UObject/PropertyAccessUtil.h"
 
-#define SET_EDITOR_PROPERTY(Object, Class, PropName, Value) \
+
+#define LOCTEXT_NAMESPACE "MGFXMaterialEditor"
+
+
+/** Set the property of an object, ensuring property change callbacks are triggered. */
+#define SET_PROPERTY(Object, Class, PropName, Value) \
 	{ \
 		const FProperty* Prop = PropertyAccessUtil::FindPropertyByName( \
 			GET_MEMBER_NAME_CHECKED(Class, PropName), Class::StaticClass()); \
@@ -25,13 +30,36 @@
 													INDEX_NONE, PropertyAccessUtil::EditorReadOnlyFlags, EPropertyAccessChangeNotifyMode::Default); \
 	}
 
-#define LOCTEXT_NAMESPACE "MGFXMaterialEditor"
+#define SET_PROPERTY_PTR(Object, Class, PropName, PtrValue) \
+	{ \
+		const FProperty* Prop = PropertyAccessUtil::FindPropertyByName( \
+			GET_MEMBER_NAME_CHECKED(Class, PropName), Class::StaticClass()); \
+		PropertyAccessUtil::SetPropertyValue_Object(Prop, Object, Prop, PtrValue, \
+													INDEX_NONE, PropertyAccessUtil::EditorReadOnlyFlags, EPropertyAccessChangeNotifyMode::Default); \
+	}
+
+/** Create a new material expression with default settings. */
+#define MNew(Class, NodePos) \
+	Cast<Class>(MaterialEditor->CreateNewMaterialExpression( \
+		Class::StaticClass(), \
+		NodePos, false, false))
+
+/** Connect two material expressions. */
+#define MConnect(From, FromPin, To, ToPin) \
+	UMaterialEditingLibrary::ConnectMaterialExpressions(From, FString(FromPin), To, FString(ToPin))
+
+/** Connect a material expression to a material output property. */
+#define MConnectProp(From, FromPin, Property) \
+	UMaterialEditingLibrary::ConnectMaterialProperty(From, FString(FromPin), Property)
+
 
 constexpr auto ReadOnlyFlags = PropertyAccessUtil::EditorReadOnlyFlags;
 constexpr auto NotifyMode = EPropertyAccessChangeNotifyMode::Default;
 
 const FName FMGFXMaterialEditor::DetailsTabId(TEXT("MGFXMaterialEditorDetailsTab"));
 const FName FMGFXMaterialEditor::CanvasTabId(TEXT("MGFXMaterialEditorCanvasTab"));
+const int32 FMGFXMaterialEditor::GridSize(16);
+
 
 void FMGFXMaterialEditor::InitMGFXMaterialEditor(const EToolkitMode::Type Mode,
                                                  const TSharedPtr<IToolkitHost>& InitToolkitHost,
@@ -150,30 +178,15 @@ void FMGFXMaterialEditor::RegenerateMaterial()
 	Generate_DeleteAllNodes(MaterialEditor, MaterialGraph);
 	Generate_AddWarningComment(MaterialEditor, MaterialGraph);
 	Generate_AddUVsBoilerplate(MaterialEditor, MaterialGraph);
+	Generate_Shapes(MaterialEditor, MaterialGraph);
 
-	{
-		FVector2D Position = FVector2D(-256, 0);
+	// connect shapes output to opacity
+	UMaterialExpressionNamedRerouteDeclaration* ShapesOutputRerouteExp = FindNamedReroute(MaterialGraph, FName(TEXT("ShapesOutput")));
+	check(ShapesOutputRerouteExp);
 
-		// connect emissive to multiply
-		UMaterialExpression* Multiply = MaterialEditor->CreateNewMaterialExpression(
-			UMaterialExpressionMultiply::StaticClass(), Position, false, false);
-		Position -= FVector2D(320, 0);
-		UMaterialEditingLibrary::ConnectMaterialProperty(Multiply, FString(), MP_EmissiveColor);
-
-		// create a constant color
-		UMaterialExpression* ConstantColor = MaterialEditor->CreateNewMaterialExpression(
-			UMaterialExpressionConstant3Vector::StaticClass(), Position, false, false);
-		Position -= FVector2D(320, 0);
-		// set random color
-		const FLinearColor RandomColor = FLinearColor::MakeRandomColor();
-		const FProperty* ConstantProperty = PropertyAccessUtil::FindPropertyByName(
-			GET_MEMBER_NAME_CHECKED(UMaterialExpressionConstant3Vector, Constant),
-			UMaterialExpressionConstant3Vector::StaticClass());
-		PropertyAccessUtil::SetPropertyValue_Object(ConstantProperty, ConstantColor, ConstantProperty, &RandomColor, INDEX_NONE, ReadOnlyFlags, NotifyMode);
-
-		// connect to multiply
-		UMaterialEditingLibrary::ConnectMaterialExpressions(ConstantColor, FString(), Multiply, FString());
-	}
+	UMaterialExpressionNamedRerouteUsage* OutputUsageExp = MNew(UMaterialExpressionNamedRerouteUsage, FVector2D(GridSize * -16, 0));
+	OutputUsageExp->Declaration = Cast<UMaterialExpressionNamedRerouteDeclaration>(ShapesOutputRerouteExp);
+	MConnectProp(OutputUsageExp, "", MP_EmissiveColor);
 
 	MaterialGraph->LinkGraphNodesFromMaterial();
 	MaterialEditor->UpdateMaterialAfterGraphChange();
@@ -253,72 +266,115 @@ void FMGFXMaterialEditor::Generate_AddWarningComment(IMaterialEditor* MaterialEd
 	const FLinearColor CommentColor = FLinearColor(0.06f, 0.02f, 0.02f);
 	const FString Text = FString::Printf(TEXT("Generated by %s\nDo not edit manually"), *GetNameSafe(OriginalMGFXMaterial));
 
-	UMaterialExpressionComment* CommentExp = MaterialEditor->CreateNewMaterialExpressionComment(FVector2D(-512, -256));
-
-	const FProperty* ColorProp = PropertyAccessUtil::FindPropertyByName(
-		GET_MEMBER_NAME_CHECKED(UMaterialExpressionComment, CommentColor), UMaterialExpressionComment::StaticClass());
-	PropertyAccessUtil::SetPropertyValue_Object(ColorProp, CommentExp, ColorProp, &CommentColor, INDEX_NONE, ReadOnlyFlags, NotifyMode);
-
-	const FProperty* TextProp = PropertyAccessUtil::FindPropertyByName(
-		GET_MEMBER_NAME_CHECKED(UMaterialExpressionComment, Text), UMaterialExpressionComment::StaticClass());
-	PropertyAccessUtil::SetPropertyValue_Object(TextProp, CommentExp, TextProp, &Text, INDEX_NONE, ReadOnlyFlags, NotifyMode);
+	FVector2D NodePos(GridSize * -20, GridSize * -10);
+	UMaterialExpressionComment* CommentExp = MaterialEditor->CreateNewMaterialExpressionComment(NodePos);
+	SET_PROPERTY(CommentExp, UMaterialExpressionComment, CommentColor, CommentColor);
+	SET_PROPERTY(CommentExp, UMaterialExpressionComment, Text, Text);
 }
 
 void FMGFXMaterialEditor::Generate_AddUVsBoilerplate(IMaterialEditor* MaterialEditor, UMaterialGraph* MaterialGraph)
 {
 	TSoftObjectPtr<UMaterialFunctionInterface> MaterialFunctionPtr(FSoftObjectPath("/Engine/Functions/UserInterface/GetUserInterfaceUV.GetUserInterfaceUV"));
 	TObjectPtr<UMaterialFunctionInterface> MaterialFunction = MaterialFunctionPtr.LoadSynchronous();
-	const FName OutputRerouteName(TEXT("CanvasUVs"));
+	const FName CanvasWidthProp(TEXT("CanvasWidth"));
+	const FName CanvasHeightProp(TEXT("CanvasHeight"));
+	const FName OutputName(TEXT("CanvasUVs"));
 	const FLinearColor OutputColor(0.02f, 1.f, 0.7f);
 
-	FVector2D NodePos = FVector2D(-1024, 512);
 
+	FVector2D NodePos(GridSize * -64, GridSize * 30);
 
 	// create CanvasWidth and CanvasHeight scalar parameters
-	UMaterialExpression* CanvasWidthExp = MaterialEditor->CreateNewMaterialExpression(
-		UMaterialExpressionScalarParameter::StaticClass(),
-		NodePos, false, false);
-	UMaterialExpression* CanvasHeightExp = MaterialEditor->CreateNewMaterialExpression(
-		UMaterialExpressionScalarParameter::StaticClass(),
-		FVector2D(NodePos.X, NodePos.Y + 128), false, false);
+	UMaterialExpression* CanvasWidthExp = MNew(UMaterialExpressionScalarParameter, NodePos);
+	SET_PROPERTY(CanvasWidthExp, UMaterialExpressionScalarParameter, ParameterName, CanvasWidthProp);
+	UMaterialExpression* CanvasHeightExp = MNew(UMaterialExpressionScalarParameter, FVector2D(NodePos.X, NodePos.Y + 128));
+	SET_PROPERTY(CanvasHeightExp, UMaterialExpressionScalarParameter, ParameterName, CanvasHeightProp);
 
-	NodePos.X += 320;
+	NodePos.X += GridSize * 20;
 
 	// append width/height
-	auto* CanvasAppendExp = MaterialEditor->CreateNewMaterialExpression(
-		UMaterialExpressionAppendVector::StaticClass(),
-		NodePos, false, false);
-	UMaterialEditingLibrary::ConnectMaterialExpressions(CanvasWidthExp, FString(), CanvasAppendExp, FString("A"));
-	UMaterialEditingLibrary::ConnectMaterialExpressions(CanvasHeightExp, FString(), CanvasAppendExp, FString("B"));
+	UMaterialExpression* CanvasAppendExp = MNew(UMaterialExpressionAppendVector, NodePos);
+	MConnect(CanvasWidthExp, "", CanvasAppendExp, "A");
+	MConnect(CanvasHeightExp, "", CanvasAppendExp, "B");
 
 	// create GetUserInterfaceUVs material function
-	UMaterialExpression* InterfaceUVsExp = MaterialEditor->CreateNewMaterialExpression(
-		UMaterialExpressionMaterialFunctionCall::StaticClass(),
-		FVector2D(NodePos.X, NodePos.Y + 256), false, false);
-	const FProperty* FunctionProp = PropertyAccessUtil::FindPropertyByName(
-		GET_MEMBER_NAME_CHECKED(UMaterialExpressionMaterialFunctionCall, MaterialFunction), UMaterialExpressionMaterialFunctionCall::StaticClass());
-	PropertyAccessUtil::SetPropertyValue_Object(FunctionProp, InterfaceUVsExp, FunctionProp, &MaterialFunction, INDEX_NONE, ReadOnlyFlags, NotifyMode);
+	UMaterialExpression* InterfaceUVsExp = MNew(UMaterialExpressionMaterialFunctionCall, FVector2D(NodePos.X, NodePos.Y + 256));
+	SET_PROPERTY(InterfaceUVsExp, UMaterialExpressionMaterialFunctionCall, MaterialFunction, MaterialFunction);
 
-	NodePos.X += 320;
+	NodePos.X += GridSize * 20;
 
 	// multiply Normalized UV by canvas size
-	UMaterialExpression* MultiplyExp = MaterialEditor->CreateNewMaterialExpression(
-		UMaterialExpressionMultiply::StaticClass(),
-		NodePos, false, false);
-	UMaterialEditingLibrary::ConnectMaterialExpressions(CanvasAppendExp, FString(), MultiplyExp, FString("A"));
-	UMaterialEditingLibrary::ConnectMaterialExpressions(InterfaceUVsExp, FString("Normalized UV"), MultiplyExp, FString("B"));
+	UMaterialExpression* MultiplyExp = MNew(UMaterialExpressionMultiply, NodePos);
+	MConnect(CanvasAppendExp, "", MultiplyExp, "A");
+	MConnect(InterfaceUVsExp, "Normalized UV", MultiplyExp, "B");
 
-	NodePos.X += 320;
+	NodePos.X += GridSize * 20;
 
 	// output to named reroute
-	UMaterialExpression* OutputExp = MaterialEditor->CreateNewMaterialExpression(
-		UMaterialExpressionNamedRerouteDeclaration::StaticClass(),
-		NodePos, false, false);
-	SET_EDITOR_PROPERTY(OutputExp, UMaterialExpressionNamedRerouteDeclaration, Name, OutputRerouteName);
-	SET_EDITOR_PROPERTY(OutputExp, UMaterialExpressionNamedRerouteDeclaration, NodeColor, OutputColor);
-	PropertyAccessUtil::SetPropertyValue_Object(FunctionProp, InterfaceUVsExp, FunctionProp, &MaterialFunction, INDEX_NONE, ReadOnlyFlags, NotifyMode);
-	UMaterialEditingLibrary::ConnectMaterialExpressions(MultiplyExp, FString(), OutputExp, FString());
+	UMaterialExpression* OutputRerouteExp = MNew(UMaterialExpressionNamedRerouteDeclaration, NodePos);
+	SET_PROPERTY(OutputRerouteExp, UMaterialExpressionNamedRerouteDeclaration, Name, OutputName);
+	SET_PROPERTY(OutputRerouteExp, UMaterialExpressionNamedRerouteDeclaration, NodeColor, OutputColor);
+	MConnect(MultiplyExp, "", OutputRerouteExp, "");
+}
+
+void FMGFXMaterialEditor::Generate_Shapes(IMaterialEditor* MaterialEditor, UMaterialGraph* MaterialGraph)
+{
+	TSoftObjectPtr<UMaterialFunctionInterface> RectFuncPtr(FSoftObjectPath("/MGFX/MaterialFunctions/MF_MGFX_Shape_Rect.MF_MGFX_Shape_Rect"));
+	TSoftObjectPtr<UMaterialFunctionInterface> LineFuncPtr(FSoftObjectPath("/MGFX/MaterialFunctions/MF_MGFX_Shape_Line.MF_MGFX_Shape_Line"));
+	TObjectPtr<UMaterialFunctionInterface> RectFunc = RectFuncPtr.LoadSynchronous();
+	TObjectPtr<UMaterialFunctionInterface> LineFunc = LineFuncPtr.LoadSynchronous();
+	const FName OutputName(TEXT("ShapesOutput"));
+	const FLinearColor OutputColor(0.02f, 1.f, 0.7f);
+
+	FVector2D NodePos(GridSize * -64, GridSize * 80);
+
+	UMaterialExpressionNamedRerouteDeclaration* CanvasUVsDeclaration = FindNamedReroute(MaterialGraph, TEXT("CanvasUVs"));
+
+	// use canvas uvs
+	UMaterialExpressionNamedRerouteUsage* CanvasUVsExp = MNew(UMaterialExpressionNamedRerouteUsage, NodePos);
+	CanvasUVsExp->Declaration = CanvasUVsDeclaration;
+
+	NodePos.X += GridSize * 20;
+
+	// eventually assign the shapes output for connecting to named reroute
+	UMaterialExpression* ShapesOutputExp = nullptr;
+	{
+		// create some test shapes
+		UMaterialExpressionMaterialFunctionCall* TestRectExp = MNew(UMaterialExpressionMaterialFunctionCall, NodePos);
+		SET_PROPERTY(TestRectExp, UMaterialExpressionMaterialFunctionCall, MaterialFunction, RectFunc);
+		MConnect(CanvasUVsExp, "", TestRectExp, "UVs");
+
+		NodePos.X += GridSize * 20;
+
+		ShapesOutputExp = TestRectExp;
+	}
+
+	// create shapes output reroute
+	UMaterialExpressionNamedRerouteDeclaration* OutputRerouteExp = MNew(UMaterialExpressionNamedRerouteDeclaration, NodePos);
+	SET_PROPERTY(OutputRerouteExp, UMaterialExpressionNamedRerouteDeclaration, Name, OutputName);
+	SET_PROPERTY(OutputRerouteExp, UMaterialExpressionNamedRerouteDeclaration, NodeColor, OutputColor);
+	MConnect(ShapesOutputExp, "", OutputRerouteExp, "");
+}
+
+UMaterialExpressionNamedRerouteDeclaration* FMGFXMaterialEditor::FindNamedReroute(UMaterialGraph* MaterialGraph, FName Name) const
+{
+	for (UEdGraphNode* Node : MaterialGraph->Nodes)
+	{
+		if (const UMaterialGraphNode* MaterialNode = Cast<UMaterialGraphNode>(Node))
+		{
+			UMaterialExpressionNamedRerouteDeclaration* Declaration = Cast<UMaterialExpressionNamedRerouteDeclaration>(MaterialNode->MaterialExpression);
+			if (Declaration && Declaration->Name.IsEqual(Name))
+			{
+				return Declaration;
+			}
+		}
+	}
+	return nullptr;
 }
 
 
 #undef LOCTEXT_NAMESPACE
+
+#undef SET_PROPERTY
+#undef MNew
+#undef MConnect
