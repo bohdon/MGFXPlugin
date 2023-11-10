@@ -3,14 +3,25 @@
 
 #include "MGFXMaterialEditor.h"
 
+#include "IMaterialEditor.h"
+#include "MaterialEditingLibrary.h"
 #include "MaterialEditorUtilities.h"
 #include "MGFXEditorModule.h"
 #include "MGFXMaterial.h"
+#include "MGFXMaterialEditorCommands.h"
+#include "Kismet2/BlueprintEditorUtils.h"
 #include "MaterialGraph/MaterialGraph.h"
+#include "MaterialGraph/MaterialGraphSchema.h"
+#include "Materials/MaterialExpressionConstant3Vector.h"
+#include "Materials/MaterialExpressionMultiply.h"
+#include "UObject/PropertyAccessUtil.h"
 
 
 #define LOCTEXT_NAMESPACE "MGFXMaterialEditor"
 
+
+const FName FMGFXMaterialEditor::DetailsTabId(TEXT("MGFXMaterialEditorDetailsTab"));
+const FName FMGFXMaterialEditor::CanvasTabId(TEXT("MGFXMaterialEditorCanvasTab"));
 
 void FMGFXMaterialEditor::InitMGFXMaterialEditor(const EToolkitMode::Type Mode,
                                                  const TSharedPtr<IToolkitHost>& InitToolkitHost,
@@ -19,6 +30,9 @@ void FMGFXMaterialEditor::InitMGFXMaterialEditor(const EToolkitMode::Type Mode,
 	check(InMGFXMaterial);
 
 	OriginalMGFXMaterial = InMGFXMaterial;
+
+	FMGFXMaterialEditorCommands::Register();
+	BindCommands();
 
 	const TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_MGFXMaterialEditor_v0.1")
 		->AddArea(
@@ -31,12 +45,13 @@ void FMGFXMaterialEditor::InitMGFXMaterialEditor(const EToolkitMode::Type Mode,
 				(
 					FTabManager::NewStack()
 					->SetSizeCoefficient(0.9f)
-					->AddTab("MGFXMaterialEditorCanvasTab", ETabState::OpenedTab)
+					->AddTab(CanvasTabId, ETabState::OpenedTab)
 				)
-				->Split(
+				->Split
+				(
 					FTabManager::NewStack()
 					->SetSizeCoefficient(0.1f)
-					->AddTab("MGFMaterialEditorDetailsTab", ETabState::OpenedTab)
+					->AddTab(DetailsTabId, ETabState::OpenedTab)
 				)
 			)
 		);
@@ -46,6 +61,9 @@ void FMGFXMaterialEditor::InitMGFXMaterialEditor(const EToolkitMode::Type Mode,
 	InitAssetEditor(Mode, InitToolkitHost, FMGFXEditorModule::MGFXMaterialEditorAppIdentifier, StandaloneDefaultLayout,
 	                bCreateDefaultStandaloneMenu, bCreateDefaultToolbar,
 	                OriginalMGFXMaterial);
+
+	ExtendToolbar();
+	RegenerateMenusAndToolbars();
 }
 
 FName FMGFXMaterialEditor::GetToolkitFName() const
@@ -74,17 +92,12 @@ void FMGFXMaterialEditor::RegisterTabSpawners(const TSharedRef<FTabManager>& InT
 
 	WorkspaceMenuCategory = InTabManager->AddLocalWorkspaceMenuCategory(LOCTEXT("WorkspaceMenu_MGFXMaterialEditor", "MGFX Material Editor"));
 
-	InTabManager->RegisterTabSpawner("MGFXMaterialEditorCanvasTab", FOnSpawnTab::CreateSP(this, &FMGFXMaterialEditor::SpawnTab_Canvas))
-	          .SetDisplayName(LOCTEXT("CanvasTabTitle", "Canvas"));
+	InTabManager->RegisterTabSpawner(CanvasTabId, FOnSpawnTab::CreateSP(this, &FMGFXMaterialEditor::SpawnTab_Canvas))
+	            .SetDisplayName(LOCTEXT("CanvasTabTitle", "Canvas"));
 
 
-	InTabManager->RegisterTabSpawner("MGFXMaterialEditorDetailsTab", FOnSpawnTab::CreateSP(this, &FMGFXMaterialEditor::SpawnTab_Details))
-	          .SetDisplayName(LOCTEXT("DetailsTabTitle", "Details"));
-}
-
-void FMGFXMaterialEditor::UnregisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
-{
-	IMGFXMaterialEditor::UnregisterTabSpawners(InTabManager);
+	InTabManager->RegisterTabSpawner(DetailsTabId, FOnSpawnTab::CreateSP(this, &FMGFXMaterialEditor::SpawnTab_Details))
+	            .SetDisplayName(LOCTEXT("DetailsTabTitle", "Details"));
 }
 
 UMaterial* FMGFXMaterialEditor::GetGeneratedMaterial() const
@@ -92,23 +105,118 @@ UMaterial* FMGFXMaterialEditor::GetGeneratedMaterial() const
 	return OriginalMGFXMaterial ? OriginalMGFXMaterial->GeneratedMaterial : nullptr;
 }
 
-void FMGFXMaterialEditor::TestGenerate()
+void FMGFXMaterialEditor::RegenerateMaterial()
 {
-	const UMaterial* Material = GetGeneratedMaterial();
-	if (!Material)
+	UMaterial* OriginalMaterial = GetGeneratedMaterial();
+	if (!OriginalMaterial)
 	{
 		return;
 	}
-	const UMaterialGraph* MaterialGraph = Material->MaterialGraph;
 
-	FMaterialEditorUtilities::CreateNewMaterialExpressionComment(MaterialGraph, FVector2D::ZeroVector);
+	// find or open the material editor
+	IAssetEditorInstance* OpenEditor = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorForAsset(OriginalMaterial, true);
+	IMaterialEditor* MaterialEditor = static_cast<IMaterialEditor*>(OpenEditor);
+	if (!MaterialEditor)
+	{
+		// try to open the editor
+		if (!GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(OriginalMaterial))
+		{
+			return;
+		}
+
+		OpenEditor = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorForAsset(OriginalMaterial, true);
+		MaterialEditor = static_cast<IMaterialEditor*>(OpenEditor);
+
+		if (!MaterialEditor)
+		{
+			return;
+		}
+	}
+
+	// the preview material has the graph we need to operate on
+	const UMaterial* EditorMaterial = Cast<UMaterial>(MaterialEditor->GetMaterialInterface());
+	UMaterialGraph* MaterialGraph = EditorMaterial->MaterialGraph;
+
+	auto NodesToDelete = MaterialGraph->Nodes.FilterByPredicate([](const UEdGraphNode* Node)
+	{
+		return Node->CanUserDeleteNode();
+	});
+	MaterialEditor->DeleteNodes(NodesToDelete);
+
+	FVector2D Position = FVector2D(-200, 0);
+
+	// connect emissive to multiply
+	UMaterialExpression* Multiply = MaterialEditor->CreateNewMaterialExpression(
+		UMaterialExpressionMultiply::StaticClass(), Position, false, false);
+	Position -= FVector2D(300, 0);
+	UMaterialEditingLibrary::ConnectMaterialProperty(Multiply, FString(), MP_EmissiveColor);
+
+	// connect another multiply
+	UMaterialExpression* Multiply2 = MaterialEditor->CreateNewMaterialExpression(
+		UMaterialExpressionMultiply::StaticClass(), Position, false, false);
+	Position -= FVector2D(300, 0);
+	UMaterialEditingLibrary::ConnectMaterialExpressions(Multiply2, FString(), Multiply, FString());
+
+	// create a constant color
+	UMaterialExpression* ConstantColor = MaterialEditor->CreateNewMaterialExpression(
+		UMaterialExpressionConstant3Vector::StaticClass(), Position, false, false);
+	Position -= FVector2D(300, 0);
+	// set random color
+	const FLinearColor RandomColor = FLinearColor::MakeRandomColor();
+	const FProperty* ConstantProperty = PropertyAccessUtil::FindPropertyByName(
+		GET_MEMBER_NAME_CHECKED(UMaterialExpressionConstant3Vector, Constant),
+		UMaterialExpressionConstant3Vector::StaticClass());
+	PropertyAccessUtil::SetPropertyValue_Object(ConstantProperty, ConstantColor, ConstantProperty, &RandomColor, INDEX_NONE,
+	                                            PropertyAccessUtil::EditorReadOnlyFlags, EPropertyAccessChangeNotifyMode::Default);;
+
+	// connect to multiply
+	UMaterialEditingLibrary::ConnectMaterialExpressions(ConstantColor, FString(), Multiply2, FString());
+
+	MaterialGraph->LinkGraphNodesFromMaterial();
+	MaterialEditor->UpdateMaterialAfterGraphChange();
 }
+
+
+void FMGFXMaterialEditor::BindCommands()
+{
+	const FMGFXMaterialEditorCommands& Commands = FMGFXMaterialEditorCommands::Get();
+	const TSharedRef<FUICommandList>& UICommandList = GetToolkitCommands();
+
+	UICommandList->MapAction(
+		Commands.RegenerateMaterial,
+		FExecuteAction::CreateSP(this, &FMGFXMaterialEditor::RegenerateMaterial));
+}
+
+void FMGFXMaterialEditor::ExtendToolbar()
+{
+	struct Local
+	{
+		static void FillToolbar(FToolBarBuilder& ToolBarBuilder)
+		{
+			ToolBarBuilder.BeginSection("Actions");
+			{
+				ToolBarBuilder.AddToolBarButton(FMGFXMaterialEditorCommands::Get().RegenerateMaterial);
+			}
+		}
+	};
+
+	TSharedPtr<FExtender> Extender = MakeShared<FExtender>();
+	Extender->AddToolBarExtension(
+		"Asset",
+		EExtensionHook::After,
+		GetToolkitCommands(),
+		FToolBarExtensionDelegate::CreateStatic(&Local::FillToolbar)
+	);
+
+	AddToolbarExtender(Extender);
+}
+
 
 TSharedRef<SDockTab> FMGFXMaterialEditor::SpawnTab_Canvas(const FSpawnTabArgs& Args)
 {
 	return SNew(SDockTab)
 	[
-		SNew(SOverlay)
+		SNew(SVerticalBox)
 	];
 }
 
@@ -119,7 +227,7 @@ TSharedRef<SDockTab> FMGFXMaterialEditor::SpawnTab_Details(const FSpawnTabArgs& 
 	FDetailsViewArgs DetailsViewArgs;
 	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
 
-	TSharedRef<IDetailsView> DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
+	const TSharedRef<IDetailsView> DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
 	DetailsView->SetObject(OriginalMGFXMaterial);
 
 	return SNew(SDockTab)
