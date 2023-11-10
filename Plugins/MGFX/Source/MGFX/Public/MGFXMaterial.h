@@ -18,7 +18,11 @@ class MGFX_API UMGFXMaterial : public UObject
 public:
 	UMGFXMaterial();
 
+	/** The base size in pixels of the canvas, for determining shape locations and sizes. */
+	UPROPERTY(EditAnywhere, Category = "Canvas")
+	FVector2D BaseCanvasSize;
+
 	/** The generated material asset being edited. */
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, Category = "Advanced")
 	TObjectPtr<UMaterial> GeneratedMaterial;
 };

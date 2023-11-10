@@ -5,5 +5,6 @@
 
 
 UMGFXMaterial::UMGFXMaterial()
+	: BaseCanvasSize(256, 256)
 {
 }

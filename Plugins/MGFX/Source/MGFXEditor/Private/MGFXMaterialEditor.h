@@ -60,5 +60,7 @@ private:
 public:
 	static const FName DetailsTabId;
 	static const FName CanvasTabId;
+	static const FName Reroute_CanvasUVs;
+	static const FName Reroute_ShapesOutput;
 	static const int32 GridSize;
 };
