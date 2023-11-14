@@ -13,16 +13,20 @@
 #include "Materials/MaterialExpressionAdd.h"
 #include "Materials/MaterialExpressionAppendVector.h"
 #include "Materials/MaterialExpressionComment.h"
+#include "Materials/MaterialExpressionComponentMask.h"
 #include "Materials/MaterialExpressionConstant.h"
 #include "Materials/MaterialExpressionConstant2Vector.h"
 #include "Materials/MaterialExpressionConstant3Vector.h"
 #include "Materials/MaterialExpressionConstant4Vector.h"
 #include "Materials/MaterialExpressionDivide.h"
+#include "Materials/MaterialExpressionLinearInterpolate.h"
 #include "Materials/MaterialExpressionMultiply.h"
 #include "Materials/MaterialExpressionNamedReroute.h"
 #include "Materials/MaterialExpressionScalarParameter.h"
 #include "Materials/MaterialExpressionSubtract.h"
+#include "Materials/MaterialExpressionVectorParameter.h"
 #include "Shapes/MGFXMaterialShape.h"
+#include "Shapes/MGFXMaterialShapeVisual.h"
 #include "UObject/PropertyAccessUtil.h"
 
 
@@ -409,8 +413,15 @@ void FMGFXMaterialEditor::Generate_Shapes(const FMGFXMaterialBuilder& Builder)
 
 	UMaterialExpressionNamedRerouteDeclaration* CanvasUVsDeclaration = FindNamedReroute(Builder.MaterialGraph, Reroute_CanvasUVs);
 
+	// start with background color
+	UMaterialExpressionConstant4Vector* BGColorExp = MNew(UMaterialExpressionConstant4Vector, NodePos);
+	SET_PROPERTY(BGColorExp, UMaterialExpressionConstant4Vector, Constant, FLinearColor::Black);
+
+	NodePos.X += GridSize * 15;
+
+	UMaterialExpression* ShapesOutputExp = BGColorExp;
+
 	// eventually assign the shapes output for connecting to named reroute
-	UMaterialExpression* ShapesOutputExp = nullptr;
 	for (int32 Idx = 0; Idx < OriginalMGFXMaterial->Layers.Num(); ++Idx)
 	{
 		const FMGFXMaterialLayer& Layer = OriginalMGFXMaterial->Layers[Idx];
@@ -419,10 +430,7 @@ void FMGFXMaterialEditor::Generate_Shapes(const FMGFXMaterialBuilder& Builder)
 		const FName ParamGroup = FName(FString::Printf(TEXT("[%d] %s"), Idx, *Layer.GetName(Idx)));
 
 		NodePos.X = NodePosBaselineLeft;
-		if (Idx > 0)
-		{
-			NodePos.Y += GridSize * 40;
-		}
+		NodePos.Y += GridSize * 40;
 
 		// convert transform to UVs
 		UMaterialExpressionNamedRerouteUsage* CanvasUVsExp = MNew(UMaterialExpressionNamedRerouteUsage, NodePos);
@@ -435,16 +443,19 @@ void FMGFXMaterialEditor::Generate_Shapes(const FMGFXMaterialBuilder& Builder)
 		// create shape
 		if (Layer.Shape)
 		{
-			UMaterialExpression* NewShapeExp = Generate_Shape(Builder, NodePos, Layer.Shape, LayerUVsExp, ParamPrefix, ParamGroup);
-
-			// merge with previous shape layer
-			if (ShapesOutputExp)
+			// the shape, with an SDF and fill output
+			UMaterialExpression* ShapeExp = Generate_Shape(Builder, NodePos, Layer.Shape, LayerUVsExp, ParamPrefix, ParamGroup);
+			check(ShapeExp);
+			// the shape visuals, including all fills and strokes
+			UMaterialExpression* VisualExp = Generate_ShapeVisuals(Builder, NodePos, Layer.Shape, ShapeExp, ParamPrefix, ParamGroup);
+			if (VisualExp)
 			{
-				ShapesOutputExp = Generate_MergeShapes(Builder, NodePos, ShapesOutputExp, NewShapeExp, ParamPrefix, ParamGroup);
+				ShapesOutputExp = Generate_MergeShapes(Builder, NodePos, ShapesOutputExp, VisualExp, ParamPrefix, ParamGroup);
 			}
 			else
 			{
-				ShapesOutputExp = NewShapeExp;
+				// no visuals, just use the first output from the shape itself
+				ShapesOutputExp = ShapeExp;
 			}
 		}
 	}
@@ -602,22 +613,17 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_Shape(const FMGFXMaterialBuil
 	}
 	check(Inputs.Num() == InputExps.Num());
 
-	// include filter width input
-	UMaterialExpressionNamedRerouteDeclaration* FilterWidthReroute = FindNamedReroute(Builder.MaterialGraph, Reroute_FilterWidth);
-	UMaterialExpressionNamedRerouteUsage* FilterWidthExp = MNew(UMaterialExpressionNamedRerouteUsage, NodePos + NodePosOffset);
-	FilterWidthExp->Declaration = FilterWidthReroute;
-
 	NodePos.X += GridSize * 20;
 
 	// create shape function
-	UMaterialExpressionMaterialFunctionCall* ShapeFuncExp = MNew(UMaterialExpressionMaterialFunctionCall, NodePos);
+	UMaterialExpressionMaterialFunctionCall* ShapeExp = MNew(UMaterialExpressionMaterialFunctionCall, NodePos);
 	UMaterialFunctionInterface* ShapeFunc = Shape->GetMaterialFunction();
 	check(ShapeFunc);
-	SET_PROPERTY(ShapeFuncExp, UMaterialExpressionMaterialFunctionCall, MaterialFunction, ShapeFunc);
+	SET_PROPERTY(ShapeExp, UMaterialExpressionMaterialFunctionCall, MaterialFunction, ShapeFunc);
 	// connect uvs
 	if (InUVsExp)
 	{
-		MConnect(InUVsExp, "", ShapeFuncExp, "UVs");
+		MConnect(InUVsExp, "", ShapeExp, "UVs");
 	}
 
 	// connect inputs
@@ -626,24 +632,70 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_Shape(const FMGFXMaterialBuil
 		const FMGFXMaterialShapeInput& Input = Inputs[Idx];
 		UMaterialExpression* InputExp = InputExps[Idx];
 
-		MConnect(InputExp, "", ShapeFuncExp, Input.Name);
+		MConnect(InputExp, "", ShapeExp, Input.Name);
 	}
-
-	// connect filter width
-	MConnect(FilterWidthExp, "", ShapeFuncExp, "FilterWidth");
 
 	NodePos.X += GridSize * 15;
 
-	return ShapeFuncExp;
+	return ShapeExp;
 }
 
-UMaterialExpression* FMGFXMaterialEditor::Generate_MergeShapes(const FMGFXMaterialBuilder& Builder, FVector2D& NodePos, UMaterialExpression* ShapeAExp,
-                                                               UMaterialExpression* ShapeBExp, const FString& ParamPrefix, const FName& ParamGroup)
+UMaterialExpression* FMGFXMaterialEditor::Generate_ShapeVisuals(const FMGFXMaterialBuilder& Builder, FVector2D& NodePos,
+                                                                const UMGFXMaterialShape* Shape, UMaterialExpression* ShapeExp,
+                                                                const FString& ParamPrefix, const FName& ParamGroup)
+{
+	// generate visuals
+	for (const UMGFXMaterialShapeVisual* Visual : Shape->Visuals)
+	{
+		if (const UMGFXMaterialShapeFill* Fill = Cast<UMGFXMaterialShapeFill>(Visual))
+		{
+			return Generate_ShapeFill(Builder, NodePos, Fill, ShapeExp, ParamPrefix, ParamGroup);
+		}
+		else if (const UMGFXMaterialShapeStroke* const Stroke = Cast<UMGFXMaterialShapeStroke>(Visual))
+		{
+			return Generate_ShapeStroke(Builder, NodePos, Stroke, ShapeExp, ParamPrefix, ParamGroup);
+		}
+		// TODO: combine visuals, don't just use the last one
+	}
+
+	return nullptr;
+}
+
+UMaterialExpression* FMGFXMaterialEditor::Generate_MergeShapes(const FMGFXMaterialBuilder& Builder, FVector2D& NodePos,
+                                                               UMaterialExpression* ShapeAExp, UMaterialExpression* ShapeBExp,
+                                                               const FString& ParamPrefix, const FName& ParamGroup)
 {
 	// TODO: more merge operations
-	UMaterialExpressionAdd* ShapeMergeExp = MNew(UMaterialExpressionAdd, NodePos);
-	MConnect(ShapeAExp, "", ShapeMergeExp, "A");
-	MConnect(ShapeBExp, "", ShapeMergeExp, "B");
+
+	// break out RGB components
+	UMaterialExpressionComponentMask* ShapeAColorExp = MNew(UMaterialExpressionComponentMask, NodePos);
+	MConnect(ShapeAExp, "", ShapeAColorExp, "");
+	ShapeAColorExp->R = 1;
+	ShapeAColorExp->G = 1;
+	ShapeAColorExp->B = 1;
+	ShapeAColorExp->A = 0;
+
+	UMaterialExpressionComponentMask* ShapeBColorExp = MNew(UMaterialExpressionComponentMask, NodePos + FVector2D(0, GridSize * 8));
+	MConnect(ShapeBExp, "", ShapeBColorExp, "");
+	ShapeBColorExp->R = 1;
+	ShapeBColorExp->G = 1;
+	ShapeBColorExp->B = 1;
+	ShapeAColorExp->A = 0;
+
+	UMaterialExpressionComponentMask* ShapeBAlphaExp = MNew(UMaterialExpressionComponentMask, NodePos + FVector2D(0, GridSize * 16));
+	MConnect(ShapeBExp, "", ShapeBAlphaExp, "");
+	ShapeBAlphaExp->R = 0;
+	ShapeBAlphaExp->G = 0;
+	ShapeBAlphaExp->B = 0;
+	ShapeBAlphaExp->A = 1;
+
+	NodePos.X += GridSize * 15;
+
+	// lerp using B's alpha
+	UMaterialExpressionLinearInterpolate* ShapeMergeExp = MNew(UMaterialExpressionLinearInterpolate, NodePos);
+	MConnect(ShapeAColorExp, "", ShapeMergeExp, "A");
+	MConnect(ShapeBColorExp, "", ShapeMergeExp, "B");
+	MConnect(ShapeBAlphaExp, "", ShapeMergeExp, "Alpha");
 
 	return ShapeMergeExp;
 }
@@ -675,6 +727,107 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_Vector2Parameter(const FMGFXM
 
 	NodePos.X += GridSize * 15;
 
+	return AppendExp;
+}
+
+UMaterialExpression* FMGFXMaterialEditor::Generate_ShapeFill(const FMGFXMaterialBuilder& Builder, FVector2D& NodePos,
+                                                             const UMGFXMaterialShapeFill* Fill, UMaterialExpression* ShapeExp,
+                                                             const FString& ParamPrefix, const FName& ParamGroup)
+{
+	TSoftObjectPtr<UMaterialFunctionInterface> FillFuncPtr(FSoftObjectPath("/MGFX/MaterialFunctions/MF_MGFX_Fill.MF_MGFX_Fill"));
+	TObjectPtr<UMaterialFunctionInterface> FillFunc = FillFuncPtr.LoadSynchronous();
+
+	// add filter width input
+	UMaterialExpressionNamedRerouteDeclaration* FilterWidthReroute = FindNamedReroute(Builder.MaterialGraph, Reroute_FilterWidth);
+	UMaterialExpressionNamedRerouteUsage* FilterWidthExp = MNew(UMaterialExpressionNamedRerouteUsage, NodePos + FVector2D(0, GridSize * 8));
+	FilterWidthExp->Declaration = FilterWidthReroute;
+
+	NodePos.X += GridSize * 15;
+
+	// add fill func
+	UMaterialExpressionMaterialFunctionCall* FillExp = MNew(UMaterialExpressionMaterialFunctionCall, NodePos);
+	SET_PROPERTY(FillExp, UMaterialExpressionMaterialFunctionCall, MaterialFunction, FillFunc);
+	MConnect(ShapeExp, "SDF", FillExp, "SDF");
+	MConnect(FilterWidthExp, "", FillExp, "FilterWidth");
+
+	NodePos.X += GridSize * 15;
+
+	// multiply by color
+	UMaterialExpressionVectorParameter* ColorExp = MNew(UMaterialExpressionVectorParameter, NodePos + FVector2D(0, GridSize * 8));
+	SET_PROPERTY_R(ColorExp, UMaterialExpressionScalarParameter, ParameterName, FName(FString::Printf(TEXT("%s.Color"), *ParamPrefix)));
+	SET_PROPERTY(ColorExp, UMaterialExpressionScalarParameter, Group, ParamGroup);
+	SET_PROPERTY_R(ColorExp, UMaterialExpressionVectorParameter, DefaultValue, Fill->GetColor());
+
+	NodePos.X += GridSize * 15;
+
+	UMaterialExpressionMultiply* AlphaMultExp = MNew(UMaterialExpressionMultiply, NodePos);
+	MConnect(FillExp, "", AlphaMultExp, "A");
+	MConnect(ColorExp, "A", AlphaMultExp, "B");
+
+	NodePos.X += GridSize * 15;
+
+	// append into an RGBA
+	UMaterialExpressionAppendVector* AppendExp = MNew(UMaterialExpressionAppendVector, NodePos);
+	MConnect(ColorExp, "", AppendExp, "A");
+	MConnect(AlphaMultExp, "", AppendExp, "B");
+
+	NodePos.X += GridSize * 15;
+
+	// RGB is not premultiplied, Alpha is
+	return AppendExp;
+}
+
+UMaterialExpression* FMGFXMaterialEditor::Generate_ShapeStroke(const FMGFXMaterialBuilder& Builder, FVector2D& NodePos,
+                                                               const UMGFXMaterialShapeStroke* Stroke, UMaterialExpression* ShapeExp,
+                                                               const FString& ParamPrefix, const FName& ParamGroup)
+{
+	TSoftObjectPtr<UMaterialFunctionInterface> StrokeFuncPtr(FSoftObjectPath("/MGFX/MaterialFunctions/MF_MGFX_Stroke.MF_MGFX_Stroke"));
+	TObjectPtr<UMaterialFunctionInterface> StrokeFunc = StrokeFuncPtr.LoadSynchronous();
+
+	// add stroke width input
+	UMaterialExpressionScalarParameter* StrokeWidthExp = MNew(UMaterialExpressionScalarParameter, NodePos + FVector2D(0, GridSize * 8));
+	SET_PROPERTY_R(StrokeWidthExp, UMaterialExpressionScalarParameter, ParameterName, FName(FString::Printf(TEXT("%s.StrokeWidth"), *ParamPrefix)));
+	SET_PROPERTY(StrokeWidthExp, UMaterialExpressionScalarParameter, Group, ParamGroup);
+	SET_PROPERTY(StrokeWidthExp, UMaterialExpressionScalarParameter, DefaultValue, Stroke->StrokeWidth);
+
+	// add filter width input
+	UMaterialExpressionNamedRerouteDeclaration* FilterWidthReroute = FindNamedReroute(Builder.MaterialGraph, Reroute_FilterWidth);
+	UMaterialExpressionNamedRerouteUsage* FilterWidthExp = MNew(UMaterialExpressionNamedRerouteUsage, NodePos + FVector2D(0, GridSize * 14));
+	FilterWidthExp->Declaration = FilterWidthReroute;
+
+	NodePos.X += GridSize * 15;
+
+	// add stroke func
+	UMaterialExpressionMaterialFunctionCall* StrokeExp = MNew(UMaterialExpressionMaterialFunctionCall, NodePos);
+	SET_PROPERTY(StrokeExp, UMaterialExpressionMaterialFunctionCall, MaterialFunction, StrokeFunc);
+	MConnect(ShapeExp, "SDF", StrokeExp, "SDF");
+	MConnect(StrokeWidthExp, "", StrokeExp, "StrokeWidth");
+	MConnect(FilterWidthExp, "", StrokeExp, "FilterWidth");
+
+	NodePos.X += GridSize * 15;
+
+	// multiply by color
+	UMaterialExpressionVectorParameter* ColorExp = MNew(UMaterialExpressionVectorParameter, NodePos + FVector2D(0, GridSize * 8));
+	SET_PROPERTY_R(ColorExp, UMaterialExpressionScalarParameter, ParameterName, FName(FString::Printf(TEXT("%s.Color"), *ParamPrefix)));
+	SET_PROPERTY(ColorExp, UMaterialExpressionScalarParameter, Group, ParamGroup);
+	SET_PROPERTY_R(ColorExp, UMaterialExpressionVectorParameter, DefaultValue, Stroke->GetColor());
+
+	NodePos.X += GridSize * 15;
+
+	UMaterialExpressionMultiply* AlphaMultExp = MNew(UMaterialExpressionMultiply, NodePos);
+	MConnect(StrokeExp, "", AlphaMultExp, "A");
+	MConnect(ColorExp, "A", AlphaMultExp, "B");
+
+	NodePos.X += GridSize * 15;
+
+	// append into an RGBA
+	UMaterialExpressionAppendVector* AppendExp = MNew(UMaterialExpressionAppendVector, NodePos);
+	MConnect(ColorExp, "", AppendExp, "A");
+	MConnect(AlphaMultExp, "", AppendExp, "B");
+
+	NodePos.X += GridSize * 15;
+
+	// RGB is not premultiplied, Alpha is
 	return AppendExp;
 }
 

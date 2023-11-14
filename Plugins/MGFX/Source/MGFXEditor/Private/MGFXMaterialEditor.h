@@ -6,9 +6,11 @@
 #include "IMGFXMaterialEditor.h"
 #include "MGFXMaterial.h"
 
-class UMaterialExpressionNamedRerouteDeclaration;
 class IMaterialEditor;
 class UMGFXMaterial;
+class UMGFXMaterialShapeFill;
+class UMGFXMaterialShapeStroke;
+class UMaterialExpressionNamedRerouteDeclaration;
 
 
 struct FMGFXMaterialBuilder
@@ -64,25 +66,23 @@ private:
 	/** Generate all shape layers and combine them. */
 	void Generate_Shapes(const FMGFXMaterialBuilder& Builder);
 
-	/**
-	 * Generate material nodes to apply a 2D transform.
-	 * @return The final material expression of the calculation.
-	 */
+	/** Generate material nodes to apply a 2D transform. */
 	UMaterialExpression* Generate_TransformUVs(const FMGFXMaterialBuilder& Builder, FVector2D& NodePos,
 	                                           const FMGFXShapeTransform2D& Transform, UMaterialExpression* InUVsExp,
 	                                           const FString& ParamPrefix, const FName& ParamGroup, bool bCreateReroute = true);
 
-	/**
-	 * Generate material nodes to create a shape.
-	 * @return The final material expression of the shape.
-	 */
+	/** Generate material nodes to create a shape. */
 	UMaterialExpression* Generate_Shape(const FMGFXMaterialBuilder& Builder, FVector2D& NodePos, const UMGFXMaterialShape* Shape,
 	                                    UMaterialExpression* InUVsExp, const FString& ParamPrefix, const FName& ParamGroup);
 
 	/**
-	 * Generate material nodes to merge two shape layers.
-	 * @return The final material expression of the merge.
+	 * Generate material nodes to create the visuals for a shape.
+	 * Returns an unpremultiplied 4-channel RGBA expression.
 	 */
+	UMaterialExpression* Generate_ShapeVisuals(const FMGFXMaterialBuilder& Builder, FVector2D& NodePos, const UMGFXMaterialShape* Shape,
+	                                           UMaterialExpression* ShapeExp, const FString& ParamPrefix, const FName& ParamGroup);
+
+	/** Generate material nodes to merge two shape layers. */
 	UMaterialExpression* Generate_MergeShapes(const FMGFXMaterialBuilder& Builder, FVector2D& NodePos,
 	                                          UMaterialExpression* ShapeAExp, UMaterialExpression* ShapeBExp,
 	                                          const FString& ParamPrefix, const FName& ParamGroup);
@@ -92,6 +92,20 @@ private:
 	UMaterialExpression* Generate_Vector2Parameter(const FMGFXMaterialBuilder& Builder, FVector2D& NodePos,
 	                                               FVector2f DefaultValue, const FString& ParamPrefix, const FName& ParamGroup,
 	                                               int32 BaseSortPriority, const FString& ParamNameX, const FString& ParamNameY);
+
+	/**
+	 * Generate material nodes for a shape fill.
+	 * Returns an unpremultiplied 4-channel RGBA expression.
+	 */
+	UMaterialExpression* Generate_ShapeFill(const FMGFXMaterialBuilder& Builder, FVector2D& NodePos, const UMGFXMaterialShapeFill* Fill,
+	                                        UMaterialExpression* ShapeExp, const FString& ParamPrefix, const FName& ParamGroup);
+
+	/**
+	 * Generate material nodes for a shape stroke.
+	 * Returns an unpremultiplied 4-channel RGBA expression.
+	 */
+	UMaterialExpression* Generate_ShapeStroke(const FMGFXMaterialBuilder& Builder, FVector2D& NodePos, const UMGFXMaterialShapeStroke* Stroke,
+	                                          UMaterialExpression* ShapeExp, const FString& ParamPrefix, const FName& ParamGroup);
 
 	/** Find and return a named reroute declaration by name. */
 	UMaterialExpressionNamedRerouteDeclaration* FindNamedReroute(UMaterialGraph* MaterialGraph, FName Name) const;

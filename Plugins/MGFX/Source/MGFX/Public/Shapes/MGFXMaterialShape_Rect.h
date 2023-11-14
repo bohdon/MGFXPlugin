@@ -10,7 +10,7 @@
 /**
  * A rectangle that supports rounded corners.
  */
-UCLASS()
+UCLASS(DisplayName = "Rect")
 class MGFX_API UMGFXMaterialShape_Rect : public UMGFXMaterialShape
 {
 	GENERATED_BODY()

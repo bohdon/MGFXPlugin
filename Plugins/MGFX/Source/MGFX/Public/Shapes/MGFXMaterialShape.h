@@ -7,6 +7,8 @@
 #include "MGFXMaterialShape.generated.h"
 
 class UMaterialFunctionInterface;
+class UMGFXMaterialShapeVisual;
+
 
 enum class EMGFXMaterialShapeInputType : uint8
 {
@@ -50,6 +52,9 @@ class MGFX_API UMGFXMaterialShape : public UObject
 	GENERATED_BODY()
 
 public:
+	UPROPERTY(EditAnywhere, Instanced, Category = "Fill / Stroke")
+	TArray<TObjectPtr<UMGFXMaterialShapeVisual>> Visuals;
+
 	/** Return the user-facing name of this shape type. */
 	virtual FString GetShapeName() const PURE_VIRTUAL(, return FString(););
 
