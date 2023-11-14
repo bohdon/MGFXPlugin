@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "MGFXEditorStyle.h"
 
 
 /**
@@ -17,7 +18,7 @@ public:
 			TEXT("MGFXMaterialEditor"),
 			NSLOCTEXT("Contexts", "MGFXMaterialEditor", "MGFX Material Editor"),
 			NAME_None,
-			FAppStyle::GetAppStyleSetName()
+			FMGFXEditorStyle::StaticStyleSetName
 		)
 	{
 	}

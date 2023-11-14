@@ -3,12 +3,13 @@
 
 #include "MGFXMaterial.h"
 
+#include "Shapes/MGFXMaterialShape.h"
 
-FString FMGFXMaterialShape::GetName(int32 LayerIdx) const
+
+FString FMGFXMaterialLayer::GetName(int32 LayerIdx) const
 {
-	// TODO: use polymorphic shapes
-	const FString ShapeTypeName = ShapeType == 0 ? TEXT("Rect") : TEXT("Line");
-	return Name.IsEmpty() ? FString::Printf(TEXT("%s%d"), *ShapeTypeName, LayerIdx) : Name;
+	const FString LayerBaseName = Shape ? Shape->GetShapeName() : TEXT("Layer");
+	return Name.IsEmpty() ? FString::Printf(TEXT("%s%d"), *LayerBaseName, LayerIdx) : Name;
 }
 
 UMGFXMaterial::UMGFXMaterial()

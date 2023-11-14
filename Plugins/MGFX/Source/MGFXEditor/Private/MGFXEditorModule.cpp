@@ -1,5 +1,6 @@
 ﻿#include "MGFXEditorModule.h"
 
+#include "MGFXEditorStyle.h"
 #include "MGFXMaterialEditor.h"
 
 
@@ -10,6 +11,7 @@ const FName FMGFXEditorModule::MGFXMaterialEditorAppIdentifier(TEXT("MGFXMateria
 
 void FMGFXEditorModule::StartupModule()
 {
+	FMGFXEditorStyle::Get();
 }
 
 void FMGFXEditorModule::ShutdownModule()

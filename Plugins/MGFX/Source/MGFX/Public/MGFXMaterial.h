@@ -7,6 +7,8 @@
 #include "MGFXMaterial.generated.h"
 
 
+class UMGFXMaterialShape;
+
 USTRUCT(BlueprintType)
 struct FMGFXShapeTransform2D
 {
@@ -22,8 +24,9 @@ struct FMGFXShapeTransform2D
 	FVector2f Scale = FVector2f(1, 1);
 };
 
+
 USTRUCT(BlueprintType)
-struct MGFX_API FMGFXMaterialShape
+struct MGFX_API FMGFXMaterialLayer
 {
 	GENERATED_BODY()
 
@@ -31,15 +34,13 @@ struct MGFX_API FMGFXMaterialShape
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FString Name;
 
+	/** The layer's transform. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FMGFXShapeTransform2D Transform;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	int32 ShapeType;
-
-	// TODO: needs to be unique per shape
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FVector2f Size = FVector2f(100, 100);
+	/** The shape to create for this layer. */
+	UPROPERTY(EditAnywhere, Instanced)
+	TObjectPtr<UMGFXMaterialShape> Shape;
 
 	FString GetName(int32 LayerIdx) const;
 };
@@ -60,12 +61,25 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Canvas")
 	FVector2D BaseCanvasSize;
 
+	/**
+	 * Should the filter width be computed dynamically? Creates sharper shapes when scaled to large sizes,
+	 * but can lead to artifacts on thin lines and round edges.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Canvas")
+	bool bComputeFilterWidth = true;
+
+	/**
+	 * The scale applied to the computed filter width, or the constant filter width to use when bComputeFilterWidth is disabled.
+	 * Larger values will result in softer edges and smoother lines.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Canvas")
+	float FilterWidthScale = 1.f;
+
 	/** The generated material asset being edited. */
 	UPROPERTY(EditAnywhere, Category = "Advanced")
 	TObjectPtr<UMaterial> GeneratedMaterial;
 
-	// TODO: use instanced struct?
-	/** The shape layers in this material. */
+	/** The layers in this material. */
 	UPROPERTY(EditAnywhere, Meta = (TitleProperty = "Name"), Category = "Shapes")
-	TArray<FMGFXMaterialShape> ShapeLayers;
+	TArray<FMGFXMaterialLayer> Layers;
 };
