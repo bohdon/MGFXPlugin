@@ -10,12 +10,15 @@
 #include "MGFXMaterialEditorCommands.h"
 #include "MaterialGraph/MaterialGraph.h"
 #include "MaterialGraph/MaterialGraphNode.h"
+#include "Materials/MaterialExpressionAdd.h"
 #include "Materials/MaterialExpressionAppendVector.h"
 #include "Materials/MaterialExpressionComment.h"
 #include "Materials/MaterialExpressionConstant2Vector.h"
+#include "Materials/MaterialExpressionDivide.h"
 #include "Materials/MaterialExpressionMultiply.h"
 #include "Materials/MaterialExpressionNamedReroute.h"
 #include "Materials/MaterialExpressionScalarParameter.h"
+#include "Materials/MaterialExpressionSubtract.h"
 #include "UObject/PropertyAccessUtil.h"
 
 
@@ -27,6 +30,16 @@
 	{ \
 		const FProperty* Prop = PropertyAccessUtil::FindPropertyByName( \
 			GET_MEMBER_NAME_CHECKED(Class, PropName), Class::StaticClass()); \
+		PropertyAccessUtil::SetPropertyValue_Object(Prop, Object, Prop, &Value, \
+													INDEX_NONE, PropertyAccessUtil::EditorReadOnlyFlags, EPropertyAccessChangeNotifyMode::Default); \
+	}
+
+/** Set the property of an object, accepting an r-value. */
+#define SET_PROPERTY_R(Object, Class, PropName, RValue) \
+	{ \
+		const FProperty* Prop = PropertyAccessUtil::FindPropertyByName( \
+			GET_MEMBER_NAME_CHECKED(Class, PropName), Class::StaticClass()); \
+		auto Value = RValue; \
 		PropertyAccessUtil::SetPropertyValue_Object(Prop, Object, Prop, &Value, \
 													INDEX_NONE, PropertyAccessUtil::EditorReadOnlyFlags, EPropertyAccessChangeNotifyMode::Default); \
 	}
@@ -325,42 +338,185 @@ void FMGFXMaterialEditor::Generate_AddUVsBoilerplate(IMaterialEditor* MaterialEd
 
 void FMGFXMaterialEditor::Generate_Shapes(IMaterialEditor* MaterialEditor, UMaterialGraph* MaterialGraph)
 {
+	TSoftObjectPtr<UMaterialFunctionInterface> RotateFuncPtr(FSoftObjectPath("/MGFX/MaterialFunctions/MF_MGFX_Rotate.MF_MGFX_Rotate"));
 	TSoftObjectPtr<UMaterialFunctionInterface> RectFuncPtr(FSoftObjectPath("/MGFX/MaterialFunctions/MF_MGFX_Shape_Rect.MF_MGFX_Shape_Rect"));
 	TSoftObjectPtr<UMaterialFunctionInterface> LineFuncPtr(FSoftObjectPath("/MGFX/MaterialFunctions/MF_MGFX_Shape_Line.MF_MGFX_Shape_Line"));
+	TObjectPtr<UMaterialFunctionInterface> RotateFunc = RotateFuncPtr.LoadSynchronous();
 	TObjectPtr<UMaterialFunctionInterface> RectFunc = RectFuncPtr.LoadSynchronous();
 	TObjectPtr<UMaterialFunctionInterface> LineFunc = LineFuncPtr.LoadSynchronous();
 	const FLinearColor OutputColor(0.02f, 1.f, 0.7f);
 
-	FVector2D NodePos(GridSize * -64, GridSize * 80);
+	constexpr float NodePosBaselineLeft = GridSize * -64;
+	FVector2D NodePos(NodePosBaselineLeft, GridSize * 80);
+	// temporary offset used to simplify next node positioning
+	FVector2D NodePosOffset = FVector2D::One();
 
 	UMaterialExpressionNamedRerouteDeclaration* CanvasUVsDeclaration = FindNamedReroute(MaterialGraph, Reroute_CanvasUVs);
 
 	// eventually assign the shapes output for connecting to named reroute
 	UMaterialExpression* ShapesOutputExp = nullptr;
+	for (int32 Idx = 0; Idx < OriginalMGFXMaterial->ShapeLayers.Num(); ++Idx)
 	{
-		// TODO: convert a 2d shape transform into a node graph
-		// use canvas uvs
-		UMaterialExpressionNamedRerouteUsage* CanvasUVsExp = MNew(UMaterialExpressionNamedRerouteUsage, NodePos);
-		CanvasUVsExp->Declaration = CanvasUVsDeclaration;
+		const FMGFXMaterialShape& Shape = OriginalMGFXMaterial->ShapeLayers[Idx];
+		const FString ParamPrefix = Shape.GetName(Idx);
+		const FName ParamGroup = FName(FString::Printf(TEXT("[%d] %s"), Idx, *Shape.GetName(Idx)));
 
-		float RectSizeX = 50.f;
-		float RectSizeY = 50.f;
-		UMaterialExpressionConstant2Vector* RectSizeExp = MNew(UMaterialExpressionConstant2Vector, FVector2D(NodePos.X, NodePos.Y + GridSize * 8));
-		SET_PROPERTY(RectSizeExp, UMaterialExpressionConstant2Vector, R, RectSizeX);
-		SET_PROPERTY(RectSizeExp, UMaterialExpressionConstant2Vector, G, RectSizeY);
+		// convert transform to UVs
+		UMaterialExpression* ShapeUVsExp = nullptr;
+		{
+			// TODO: conditionally apply all operations, e.g. only add translate/rotate/scale when desired
 
-		NodePos.X += GridSize * 20;
+			NodePos.X = NodePosBaselineLeft;
+			if (Idx > 0)
+			{
+				NodePos.Y += GridSize * 40;
+			}
 
-		// create some test shapes
-		UMaterialExpressionMaterialFunctionCall* TestRectExp = MNew(UMaterialExpressionMaterialFunctionCall, NodePos);
-		SET_PROPERTY(TestRectExp, UMaterialExpressionMaterialFunctionCall, MaterialFunction, RectFunc);
-		MConnect(CanvasUVsExp, "", TestRectExp, "UVs");
-		MConnect(RectSizeExp, "", TestRectExp, "Size");
+			// use canvas uvs
+			UMaterialExpressionNamedRerouteUsage* CanvasUVsExp = MNew(UMaterialExpressionNamedRerouteUsage, NodePos);
+			CanvasUVsExp->Declaration = CanvasUVsDeclaration;
 
-		NodePos.X += GridSize * 20;
+			NodePos.X += GridSize * 15;
 
-		ShapesOutputExp = TestRectExp;
+			// apply translate
+			NodePosOffset = FVector2D(0, GridSize * 8);
+			UMaterialExpressionScalarParameter* TranslateXExp = MNew(UMaterialExpressionScalarParameter, NodePos + NodePosOffset);
+			const FName TranslateXParamName = FName(FString::Printf(TEXT("%s.TranslateX"), *ParamPrefix));
+			SET_PROPERTY(TranslateXExp, UMaterialExpressionScalarParameter, ParameterName, TranslateXParamName);
+			SET_PROPERTY(TranslateXExp, UMaterialExpressionScalarParameter, Group, ParamGroup);
+			SET_PROPERTY_R(TranslateXExp, UMaterialExpressionScalarParameter, SortPriority, 10);
+			SET_PROPERTY(TranslateXExp, UMaterialExpressionScalarParameter, DefaultValue, Shape.Transform.Location.X);
+
+			NodePosOffset = FVector2D(0, GridSize * 14);
+			UMaterialExpressionScalarParameter* TranslateYExp = MNew(UMaterialExpressionScalarParameter, NodePos + NodePosOffset);
+			const FName TranslateYParamName = FName(FString::Printf(TEXT("%s.TranslateY"), *ParamPrefix));
+			SET_PROPERTY(TranslateYExp, UMaterialExpressionScalarParameter, ParameterName, TranslateYParamName);
+			SET_PROPERTY(TranslateYExp, UMaterialExpressionScalarParameter, Group, ParamGroup);
+			SET_PROPERTY_R(TranslateYExp, UMaterialExpressionScalarParameter, SortPriority, 11);
+			SET_PROPERTY(TranslateYExp, UMaterialExpressionScalarParameter, DefaultValue, Shape.Transform.Location.Y);
+
+			NodePos.X += GridSize * 15;
+
+			NodePosOffset = FVector2D(0, GridSize * 8);
+			UMaterialExpressionAppendVector* TranslateAppendExp = MNew(UMaterialExpressionAppendVector, NodePos + NodePosOffset);
+			MConnect(TranslateXExp, "", TranslateAppendExp, "A");
+			MConnect(TranslateYExp, "", TranslateAppendExp, "B");
+
+			NodePos.X += GridSize * 15;
+
+			// subtract so that coordinate space matches UMG, positive offset means going right or down
+			UMaterialExpressionSubtract* TranslateUVsExp = MNew(UMaterialExpressionSubtract, NodePos);
+			MConnect(CanvasUVsExp, "", TranslateUVsExp, "A");
+			MConnect(TranslateAppendExp, "", TranslateUVsExp, "B");
+
+			NodePos.X += GridSize * 15;
+
+
+			// apply rotate
+			NodePosOffset = FVector2D(0, GridSize * 8);
+			UMaterialExpressionScalarParameter* RotationExp = MNew(UMaterialExpressionScalarParameter, NodePos + NodePosOffset);
+			const FName RotationParamName = FName(FString::Printf(TEXT("%s.Rotation"), *ParamPrefix));
+			SET_PROPERTY(RotationExp, UMaterialExpressionScalarParameter, ParameterName, RotationParamName);
+			SET_PROPERTY(RotationExp, UMaterialExpressionScalarParameter, Group, ParamGroup);
+			SET_PROPERTY_R(RotationExp, UMaterialExpressionScalarParameter, SortPriority, 20);
+			SET_PROPERTY(RotationExp, UMaterialExpressionScalarParameter, DefaultValue, Shape.Transform.Rotation);
+
+			NodePos.X += GridSize * 15;
+
+			// TODO: perf: allow marking rotation as animatable or not and bake in the conversion when not needed
+			// conversion from degrees, not baked in to support animation
+			NodePosOffset = FVector2D(0, GridSize * 8);
+			UMaterialExpressionDivide* RotateConvExp = MNew(UMaterialExpressionDivide, NodePos + NodePosOffset);
+			MConnect(RotationExp, "", RotateConvExp, "");
+			// negative to match UMG coordinate space, positive rotations are clockwise
+			SET_PROPERTY_R(RotateConvExp, UMaterialExpressionDivide, ConstB, -360.f);
+
+			NodePos.X += GridSize * 15;
+
+			UMaterialExpressionMaterialFunctionCall* RotateUVsExp = MNew(UMaterialExpressionMaterialFunctionCall, NodePos);
+			SET_PROPERTY(RotateUVsExp, UMaterialExpressionMaterialFunctionCall, MaterialFunction, RotateFunc);
+			MConnect(TranslateUVsExp, "", RotateUVsExp, "UVs");
+			MConnect(RotateConvExp, "", RotateUVsExp, "Rotation");
+
+			NodePos.X += GridSize * 15;
+
+
+			// apply scale
+			NodePosOffset = FVector2D(0, GridSize * 8);
+			UMaterialExpressionScalarParameter* ScaleXExp = MNew(UMaterialExpressionScalarParameter, NodePos + NodePosOffset);
+			const FName ScaleXParamName = FName(FString::Printf(TEXT("%s.ScaleX"), *ParamPrefix));
+			SET_PROPERTY(ScaleXExp, UMaterialExpressionScalarParameter, ParameterName, ScaleXParamName);
+			SET_PROPERTY(ScaleXExp, UMaterialExpressionScalarParameter, Group, ParamGroup);
+			SET_PROPERTY_R(ScaleXExp, UMaterialExpressionScalarParameter, SortPriority, 30);
+			SET_PROPERTY(ScaleXExp, UMaterialExpressionScalarParameter, DefaultValue, Shape.Transform.Scale.X);
+
+			NodePosOffset = FVector2D(0, GridSize * 14);
+			UMaterialExpressionScalarParameter* ScaleYExp = MNew(UMaterialExpressionScalarParameter, NodePos + NodePosOffset);
+			const FName ScaleYParamName = FName(FString::Printf(TEXT("%s.ScaleY"), *ParamPrefix));
+			SET_PROPERTY(ScaleYExp, UMaterialExpressionScalarParameter, ParameterName, ScaleYParamName);
+			SET_PROPERTY(ScaleYExp, UMaterialExpressionScalarParameter, Group, ParamGroup);
+			SET_PROPERTY_R(ScaleYExp, UMaterialExpressionScalarParameter, SortPriority, 31);
+			SET_PROPERTY(ScaleYExp, UMaterialExpressionScalarParameter, DefaultValue, Shape.Transform.Scale.Y);
+
+			NodePos.X += GridSize * 15;
+
+			NodePosOffset = FVector2D(0, GridSize * 8);
+			UMaterialExpressionAppendVector* ScaleAppendExp = MNew(UMaterialExpressionAppendVector, NodePos + NodePosOffset);
+			MConnect(ScaleXExp, "", ScaleAppendExp, "A");
+			MConnect(ScaleYExp, "", ScaleAppendExp, "B");
+
+			NodePos.X += GridSize * 15;
+
+			UMaterialExpressionDivide* ScaleUVsExp = MNew(UMaterialExpressionDivide, NodePos);
+			MConnect(RotateUVsExp, "", ScaleUVsExp, "A");
+			MConnect(ScaleAppendExp, "", ScaleUVsExp, "B");
+
+			NodePos.X += GridSize * 15;
+
+			ShapeUVsExp = ScaleUVsExp;
+		}
+
+
+		// create shape
+		NodePosOffset = FVector2D(0, GridSize * 8);
+		// currently not animatable
+		UMaterialExpressionConstant2Vector* ShapeSizeExp = MNew(UMaterialExpressionConstant2Vector, NodePos + NodePosOffset);
+		SET_PROPERTY(ShapeSizeExp, UMaterialExpressionConstant2Vector, R, Shape.Size.X);
+		SET_PROPERTY(ShapeSizeExp, UMaterialExpressionConstant2Vector, G, Shape.Size.Y);
+
+		NodePos.X += GridSize * 15;
+
+		UMaterialExpressionMaterialFunctionCall* ShapeExp = MNew(UMaterialExpressionMaterialFunctionCall, NodePos);
+		// TODO: dynamically select shape func
+		UMaterialFunctionInterface* ShapeFunc = RectFunc;
+		SET_PROPERTY(ShapeExp, UMaterialExpressionMaterialFunctionCall, MaterialFunction, ShapeFunc);
+		if (ShapeUVsExp)
+		{
+			MConnect(ShapeUVsExp, "", ShapeExp, "UVs");
+		}
+
+		// TODO: dynamically connect shape inputs which will vary per shape
+		MConnect(ShapeSizeExp, "", ShapeExp, "Size");
+
+		NodePos.X += GridSize * 15;
+
+
+		// combine with previous layer
+		if (ShapesOutputExp)
+		{
+			UMaterialExpressionAdd* ShapeLayerMergeExp = MNew(UMaterialExpressionAdd, NodePos);
+			MConnect(ShapesOutputExp, "", ShapeLayerMergeExp, "A");
+			MConnect(ShapeExp, "", ShapeLayerMergeExp, "B");
+
+			ShapesOutputExp = ShapeLayerMergeExp;
+		}
+		else
+		{
+			ShapesOutputExp = ShapeExp;
+		}
 	}
+
+	NodePos.X += GridSize * 15;
 
 	// create shapes output reroute
 	UMaterialExpressionNamedRerouteDeclaration* OutputRerouteExp = MNew(UMaterialExpressionNamedRerouteDeclaration, NodePos);
