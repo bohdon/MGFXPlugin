@@ -16,7 +16,7 @@ struct FMGFXShapeTransform2D
 
 	/** When true, all values will be setup as animatable parameters, otherwise they may be optimized out. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	bool bAnimatable = true;
+	bool bAnimatable = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FVector2f Location = FVector2f(0.f, 0.f);
@@ -78,6 +78,13 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, Category = "Canvas")
 	float FilterWidthScale = 1.f;
+
+	/**
+	 * Don't optimize out any parameters to allow for animating every property.
+	 * This can be much more expensive so use sparingly.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Advanced")
+	bool bAllAnimatable = false;
 
 	/** The generated material asset being edited. */
 	UPROPERTY(EditAnywhere, Category = "Advanced")

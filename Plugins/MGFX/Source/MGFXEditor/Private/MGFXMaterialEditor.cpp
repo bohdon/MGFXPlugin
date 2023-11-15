@@ -389,77 +389,88 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_TransformUVs(FMGFXMaterialBui
                                                                 const FMGFXShapeTransform2D& Transform, UMaterialExpression* InUVsExp,
                                                                 const FString& ParamPrefix, const FName& ParamGroup, bool bCreateReroute)
 {
-	const FLinearColor UVsOutputColor(0.02f, 1.f, 0.7f);
+	// points to the last expression from each operation, since some may be skipped due to optimization
+	UMaterialExpression* LastInputExp = InUVsExp;
 
 	// temporary offset used to simplify next node positioning
 	FVector2D NodePosOffset = FVector2D::Zero();
 
-	// TODO: conditionally apply all operations, e.g. only add translate/rotate/scale when desired
+	const bool bNoOptimization = Transform.bAnimatable || OriginalMGFXMaterial->bAllAnimatable;
 
 	// apply translate
-	NodePos.Y += GridSize * 8;
-	UMaterialExpression* TranslateValueExp = Generate_Vector2Parameter(Builder, NodePos, Transform.Location, ParamPrefix, ParamGroup,
-	                                                                   10, "TranslateX", "TranslateY");
-	NodePos.Y -= GridSize * 8;
-
-	// subtract so that coordinate space matches UMG, positive offset means going right or down
-	UMaterialExpressionSubtract* TranslateUVsExp = Builder.Create<UMaterialExpressionSubtract>(NodePos);
-	Builder.Connect(InUVsExp, "", TranslateUVsExp, "A");
-	Builder.Connect(TranslateValueExp, "", TranslateUVsExp, "B");
-
-	NodePos.X += GridSize * 15;
-
-
-	// apply rotate
-	NodePosOffset = FVector2D(0, GridSize * 8);
-	UMaterialExpressionScalarParameter* RotationExp = Builder.CreateScalarParam(
-		NodePos + NodePosOffset, FName(ParamPrefix + "Rotation"), ParamGroup, 20);
-	SET_PROP(RotationExp, DefaultValue, Transform.Rotation);
-
-	NodePos.X += GridSize * 15;
-
-	// TODO: perf: allow marking rotation as animatable or not and bake in the conversion when not needed
-	// conversion from degrees, not baked in to support animation
-	NodePosOffset = FVector2D(0, GridSize * 8);
-	UMaterialExpressionDivide* RotateConvExp = Builder.Create<UMaterialExpressionDivide>(NodePos + NodePosOffset);
-	Builder.Connect(RotationExp, "", RotateConvExp, "");
-	// negative to match UMG coordinate space, positive rotations are clockwise
-	SET_PROP_R(RotateConvExp, ConstB, -360.f);
-
-	NodePos.X += GridSize * 15;
-
-	UMaterialExpressionMaterialFunctionCall* RotateUVsExp = Builder.CreateFunction(
-		NodePos, TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Rotate.MF_MGFX_Rotate")));
-	Builder.Connect(TranslateUVsExp, "", RotateUVsExp, "UVs");
-	Builder.Connect(RotateConvExp, "", RotateUVsExp, "Rotation");
-
-	NodePos.X += GridSize * 15;
-
-
-	// apply scale
-	NodePos.Y += GridSize * 8;
-	UMaterialExpression* ScaleValueExp = Generate_Vector2Parameter(Builder, NodePos, Transform.Scale, ParamPrefix, ParamGroup, 30, "ScaleX", "ScaleY");
-	NodePos.Y -= GridSize * 8;
-
-	UMaterialExpressionDivide* ScaleUVsExp = Builder.Create<UMaterialExpressionDivide>(NodePos);
-	Builder.Connect(RotateUVsExp, "", ScaleUVsExp, "A");
-	Builder.Connect(ScaleValueExp, "", ScaleUVsExp, "B");
-
-	NodePos.X += GridSize * 15;
-
-	if (!bCreateReroute)
+	if (bNoOptimization || !Transform.Location.IsZero())
 	{
-		// early exit, don't create reroute
-		return ScaleUVsExp;
+		NodePos.Y += GridSize * 8;
+
+		UMaterialExpression* TranslateValueExp = Generate_Vector2Parameter(Builder, NodePos, Transform.Location, ParamPrefix, ParamGroup,
+		                                                                   10, "TranslateX", "TranslateY");
+		NodePos.Y -= GridSize * 8;
+
+		// subtract so that coordinate space matches UMG, positive offset means going right or down
+		UMaterialExpressionSubtract* TranslateUVsExp = Builder.Create<UMaterialExpressionSubtract>(NodePos);
+		Builder.Connect(LastInputExp, "", TranslateUVsExp, "A");
+		Builder.Connect(TranslateValueExp, "", TranslateUVsExp, "B");
+		LastInputExp = TranslateUVsExp;
+
+		NodePos.X += GridSize * 15;
 	}
 
-	// output to named reroute
-	UMaterialExpressionNamedRerouteDeclaration* UVsRerouteExp = Builder.CreateNamedReroute(NodePos, FName(ParamPrefix + "UVs"), UVsOutputColor);
-	Builder.Connect(ScaleUVsExp, "", UVsRerouteExp, "");
+	// apply rotate
+	if (bNoOptimization || !FMath::IsNearlyZero(Transform.Rotation))
+	{
+		NodePosOffset = FVector2D(0, GridSize * 8);
+		UMaterialExpressionScalarParameter* RotationExp = Builder.CreateScalarParam(
+			NodePos + NodePosOffset, FName(ParamPrefix + "Rotation"), ParamGroup, 20);
+		SET_PROP(RotationExp, DefaultValue, Transform.Rotation);
 
-	NodePos.X += GridSize * 15;
+		NodePos.X += GridSize * 15;
 
-	return UVsRerouteExp;
+		// TODO: perf: allow marking rotation as animatable or not and bake in the conversion when not needed
+		// conversion from degrees, not baked in to support animation
+		NodePosOffset = FVector2D(0, GridSize * 8);
+		UMaterialExpressionDivide* RotateConvExp = Builder.Create<UMaterialExpressionDivide>(NodePos + NodePosOffset);
+		Builder.Connect(RotationExp, "", RotateConvExp, "");
+		// negative to match UMG coordinate space, positive rotations are clockwise
+		SET_PROP_R(RotateConvExp, ConstB, -360.f);
+
+		NodePos.X += GridSize * 15;
+
+		UMaterialExpressionMaterialFunctionCall* RotateUVsExp = Builder.CreateFunction(
+			NodePos, TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Rotate.MF_MGFX_Rotate")));
+		Builder.Connect(LastInputExp, "", RotateUVsExp, "UVs");
+		Builder.Connect(RotateConvExp, "", RotateUVsExp, "Rotation");
+		LastInputExp = RotateUVsExp;
+
+		NodePos.X += GridSize * 15;
+	}
+
+	// apply scale
+	if (bNoOptimization || Transform.Scale != FVector2f::One())
+	{
+		NodePos.Y += GridSize * 8;
+		UMaterialExpression* ScaleValueExp = Generate_Vector2Parameter(Builder, NodePos, Transform.Scale, ParamPrefix, ParamGroup, 30, "ScaleX", "ScaleY");
+		NodePos.Y -= GridSize * 8;
+
+		UMaterialExpressionDivide* ScaleUVsExp = Builder.Create<UMaterialExpressionDivide>(NodePos);
+		Builder.Connect(LastInputExp, "", ScaleUVsExp, "A");
+		Builder.Connect(ScaleValueExp, "", ScaleUVsExp, "B");
+		LastInputExp = ScaleUVsExp;
+
+		NodePos.X += GridSize * 15;
+	}
+
+	if (bCreateReroute)
+	{
+		// output to named reroute
+		constexpr FLinearColor UVsOutputColor(0.02f, 1.f, 0.7f);
+		UMaterialExpressionNamedRerouteDeclaration* UVsRerouteExp = Builder.CreateNamedReroute(NodePos, FName(ParamPrefix + "UVs"), UVsOutputColor);
+		Builder.Connect(LastInputExp, "", UVsRerouteExp, "");
+		LastInputExp = UVsRerouteExp;
+
+		NodePos.X += GridSize * 15;
+	}
+
+	return LastInputExp;
 }
 
 UMaterialExpression* FMGFXMaterialEditor::Generate_Shape(FMGFXMaterialBuilder& Builder, FVector2D& NodePos, const UMGFXMaterialShape* Shape,
