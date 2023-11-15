@@ -59,7 +59,7 @@ public:
 
 	/** The base size in pixels of the canvas, for determining shape locations and sizes. */
 	UPROPERTY(EditAnywhere, Category = "Canvas")
-	FVector2D BaseCanvasSize;
+	FVector2f BaseCanvasSize;
 
 	/**
 	 * Should the filter width be computed dynamically? Creates sharper shapes when scaled to large sizes,

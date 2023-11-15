@@ -6,6 +6,9 @@
 #include "Modules/ModuleManager.h"
 
 
+DECLARE_LOG_CATEGORY_EXTERN(LogMGFXEditor, Log, All);
+
+
 class FMGFXEditorModule : public IModuleInterface
 {
 public:

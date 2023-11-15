@@ -4,6 +4,9 @@
 #include "MGFXMaterialEditor.h"
 
 
+DEFINE_LOG_CATEGORY(LogMGFXEditor);
+
+
 #define LOCTEXT_NAMESPACE "FMGFXEditorModule"
 
 
