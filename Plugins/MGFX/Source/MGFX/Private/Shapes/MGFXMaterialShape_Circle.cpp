@@ -9,7 +9,7 @@
 UMGFXMaterialShape_Circle::UMGFXMaterialShape_Circle()
 {
 #if WITH_EDITORONLY_DATA
-	MaterialFunction = FSoftObjectPath("/MGFX/MaterialFunctions/MF_MGFX_Shape_Circle.MF_MGFX_Shape_Circle");
+	MaterialFunction = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Shape_Circle.MF_MGFX_Shape_Circle"));
 #endif
 
 	Visuals.Add(CreateDefaultSubobject<UMGFXMaterialShapeFill>(TEXT("DefaultFill")));
