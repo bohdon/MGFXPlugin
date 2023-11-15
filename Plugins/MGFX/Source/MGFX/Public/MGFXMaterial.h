@@ -14,11 +14,15 @@ struct FMGFXShapeTransform2D
 {
 	GENERATED_BODY()
 
+	/** When true, all values will be setup as animatable parameters, otherwise they may be optimized out. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FVector2f Location;
+	bool bAnimatable = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float Rotation;
+	FVector2f Location = FVector2f(0.f, 0.f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float Rotation = 0.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FVector2f Scale = FVector2f(1, 1);
