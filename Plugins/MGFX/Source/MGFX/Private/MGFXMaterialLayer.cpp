@@ -6,6 +6,7 @@
 
 UMGFXMaterialLayer::UMGFXMaterialLayer()
 	: Name(TEXT("Layer")),
-	  Index(0)
+	  Index(0),
+	  MergeOperation(EMGFXLayerMergeOperation::Over)
 {
 }

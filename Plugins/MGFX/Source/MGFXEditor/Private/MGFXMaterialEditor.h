@@ -4,16 +4,34 @@
 
 #include "CoreMinimal.h"
 #include "IMGFXMaterialEditor.h"
-#include "MGFXMaterial.h"
+#include "MGFXMaterialTypes.h"
 #include "MGFXMaterialBuilder.h"
 
 class IMaterialEditor;
 class SArtboardPanel;
 class SImage;
 class UMGFXMaterial;
+class UMGFXMaterialLayer;
+class UMGFXMaterialShape;
 class UMGFXMaterialShapeFill;
 class UMGFXMaterialShapeStroke;
 class UMaterialExpressionNamedRerouteDeclaration;
+
+
+/**
+ * Tracks output expressions for a single layer in a generated material.
+ */
+struct FMGFXMaterialLayerOutputs
+{
+	/** The uvs expression for the layer. */
+	UMaterialExpressionNamedRerouteDeclaration* UVsExp = nullptr;
+
+	/** The shape sdf expression for the layer. */
+	UMaterialExpression* ShapeExp = nullptr;
+
+	/** The merged result of all visuals for the layer. */
+	UMaterialExpression* VisualExp = nullptr;
+};
 
 
 /**
@@ -82,8 +100,8 @@ private:
 	void Generate_Layers(FMGFXMaterialBuilder& Builder);
 
 	/** Generate a layer and all it's children recursively. */
-	UMaterialExpression* Generate_Layer(FMGFXMaterialBuilder& Builder, FVector2D& NodePos, const UMGFXMaterialLayer* Layer,
-	                                    UMaterialExpressionNamedRerouteDeclaration* InputUVsReroute, UMaterialExpression* OutputExp);
+	FMGFXMaterialLayerOutputs Generate_Layer(FMGFXMaterialBuilder& Builder, FVector2D& NodePos, const UMGFXMaterialLayer* Layer,
+	                                         UMaterialExpressionNamedRerouteDeclaration* InputUVsReroute, const FMGFXMaterialLayerOutputs& PrevOutputs);
 
 	/** Generate material nodes to apply a 2D transform. */
 	UMaterialExpression* Generate_TransformUVs(FMGFXMaterialBuilder& Builder, FVector2D& NodePos,
@@ -101,9 +119,14 @@ private:
 	UMaterialExpression* Generate_ShapeVisuals(FMGFXMaterialBuilder& Builder, FVector2D& NodePos, const UMGFXMaterialShape* Shape,
 	                                           UMaterialExpression* ShapeExp, const FString& ParamPrefix, const FName& ParamGroup);
 
-	/** Generate material nodes to merge two shape layers. */
+	/** Merge two visual (RGBA) layers. */
+	UMaterialExpression* Generate_MergeVisual(FMGFXMaterialBuilder& Builder, FVector2D& NodePos,
+	                                          UMaterialExpression* AExp, UMaterialExpression* BExp, EMGFXLayerMergeOperation Operation,
+	                                          const FString& ParamPrefix, const FName& ParamGroup);
+
+	/** Merge two shape (SDF) layers. */
 	UMaterialExpression* Generate_MergeShapes(FMGFXMaterialBuilder& Builder, FVector2D& NodePos,
-	                                          UMaterialExpression* ShapeAExp, UMaterialExpression* ShapeBExp,
+	                                          UMaterialExpression* AExp, UMaterialExpression* BExp, EMGFXShapeMergeOperation Operation,
 	                                          const FString& ParamPrefix, const FName& ParamGroup);
 
 

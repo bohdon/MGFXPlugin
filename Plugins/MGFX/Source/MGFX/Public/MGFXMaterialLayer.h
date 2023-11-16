@@ -3,30 +3,11 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "MGFXMaterialTypes.h"
 #include "UObject/Object.h"
 #include "MGFXMaterialLayer.generated.h"
 
 class UMGFXMaterialShape;
-
-
-USTRUCT(BlueprintType)
-struct FMGFXShapeTransform2D
-{
-	GENERATED_BODY()
-
-	/** When true, all values will be setup as animatable parameters, otherwise they may be optimized out. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	bool bAnimatable = false;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FVector2f Location = FVector2f(0.f, 0.f);
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float Rotation = 0.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FVector2f Scale = FVector2f(1, 1);
-};
 
 
 /**
@@ -47,6 +28,10 @@ public:
 	/** The index of the layer among all layers. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Layer")
 	int32 Index;
+
+	/** The merge operation to use for visuals in this layer. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Layer")
+	EMGFXLayerMergeOperation MergeOperation;
 
 	/** The layer's transform. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Layer")

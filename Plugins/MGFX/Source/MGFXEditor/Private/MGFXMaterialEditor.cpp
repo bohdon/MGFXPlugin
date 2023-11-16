@@ -11,6 +11,7 @@
 #include "MGFXPropertyMacros.h"
 #include "Artboard/SArtboardPanel.h"
 #include "MaterialGraph/MaterialGraph.h"
+#include "Materials/MaterialExpressionAdd.h"
 #include "Materials/MaterialExpressionAppendVector.h"
 #include "Materials/MaterialExpressionComponentMask.h"
 #include "Materials/MaterialExpressionConstant.h"
@@ -19,8 +20,10 @@
 #include "Materials/MaterialExpressionConstant4Vector.h"
 #include "Materials/MaterialExpressionDivide.h"
 #include "Materials/MaterialExpressionLinearInterpolate.h"
+#include "Materials/MaterialExpressionMax.h"
 #include "Materials/MaterialExpressionMultiply.h"
 #include "Materials/MaterialExpressionNamedReroute.h"
+#include "Materials/MaterialExpressionOneMinus.h"
 #include "Materials/MaterialExpressionScalarParameter.h"
 #include "Materials/MaterialExpressionSubtract.h"
 #include "Materials/MaterialExpressionVectorParameter.h"
@@ -383,21 +386,27 @@ void FMGFXMaterialEditor::Generate_Layers(FMGFXMaterialBuilder& Builder)
 
 	NodePos.X += GridSize * 15;
 
+	const FMGFXMaterialLayerOutputs BGOutputs(nullptr, nullptr, BGColorExp);
+
 	// generate all layers recursively
 	check(OriginalMGFXMaterial->RootLayer);
 	UMaterialExpressionNamedRerouteDeclaration* CanvasUVsDeclaration = Builder.FindNamedReroute(Reroute_CanvasUVs);
-	UMaterialExpression* LayerOutputExp = Generate_Layer(Builder, NodePos, OriginalMGFXMaterial->RootLayer, CanvasUVsDeclaration, BGColorExp);
+	const FMGFXMaterialLayerOutputs TopLayerOutputs = Generate_Layer(Builder, NodePos, OriginalMGFXMaterial->RootLayer, CanvasUVsDeclaration, BGOutputs);
 
 	NodePos.X += GridSize * 15;
 
 	// connect to layers output reroute
 	UMaterialExpressionNamedRerouteDeclaration* OutputRerouteExp = Builder.CreateNamedReroute(NodePos, Reroute_LayersOutput, RGBARerouteColor);
-	Builder.Connect(LayerOutputExp, "", OutputRerouteExp, "");
+	Builder.Connect(TopLayerOutputs.VisualExp, "", OutputRerouteExp, "");
 }
 
-UMaterialExpression* FMGFXMaterialEditor::Generate_Layer(FMGFXMaterialBuilder& Builder, FVector2D& NodePos, const UMGFXMaterialLayer* Layer,
-                                                         UMaterialExpressionNamedRerouteDeclaration* InputUVsReroute, UMaterialExpression* OutputExp)
+FMGFXMaterialLayerOutputs FMGFXMaterialEditor::Generate_Layer(FMGFXMaterialBuilder& Builder, FVector2D& NodePos, const UMGFXMaterialLayer* Layer,
+                                                              UMaterialExpressionNamedRerouteDeclaration* InputUVsReroute,
+                                                              const FMGFXMaterialLayerOutputs& PrevOutputs)
 {
+	// collect expressions for this layers output
+	FMGFXMaterialLayerOutputs LayerOutputs;
+
 	const FString LayerName = Layer->Name.IsEmpty() ? Layer->GetName() : Layer->Name;
 	const FString ParamPrefix = LayerName + ".";
 	const FName ParamGroup = FName(FString::Printf(TEXT("[%d] %s"), Layer->Index, *LayerName));
@@ -406,7 +415,8 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_Layer(FMGFXMaterialBuilder& B
 	NodePos.X = NodePosBaselineLeft;
 	NodePos.Y += GridSize * 40;
 
-	// reuse base canvas UVs
+
+	// generate transform uvs
 	UMaterialExpressionNamedRerouteUsage* ParentUVsExp = Builder.CreateNamedRerouteUsage(NodePos, InputUVsReroute);
 
 	NodePos.X += GridSize * 15;
@@ -415,37 +425,74 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_Layer(FMGFXMaterialBuilder& B
 	const bool bCreateReroute = !Layer->Children.IsEmpty();
 	UMaterialExpression* UVsExp = Generate_TransformUVs(Builder, NodePos, Layer->Transform, ParentUVsExp, ParamPrefix, ParamGroup, bCreateReroute);
 
-	// create shape
+	if (bCreateReroute)
+	{
+		LayerOutputs.UVsExp = Cast<UMaterialExpressionNamedRerouteDeclaration>(UVsExp);
+	}
+
+
+	// generate children layers bottom to top
+	FMGFXMaterialLayerOutputs ChildOutputs = LayerOutputs;
+	for (int32 Idx = Layer->Children.Num() - 1; Idx >= 0; --Idx)
+	{
+		check(LayerOutputs.UVsExp);
+		const UMGFXMaterialLayer* ChildLayer = Layer->Children[Idx];
+		ChildOutputs = Generate_Layer(Builder, NodePos, ChildLayer, LayerOutputs.UVsExp, ChildOutputs);
+	}
+
+
+	// generate shape for this layer
 	if (Layer->Shape)
 	{
 		// the shape, with an SDF output
-		UMaterialExpression* ShapeExp = Generate_Shape(Builder, NodePos, Layer->Shape, UVsExp, ParamPrefix, ParamGroup);
-		check(ShapeExp);
+		LayerOutputs.ShapeExp = Generate_Shape(Builder, NodePos, Layer->Shape, UVsExp, ParamPrefix, ParamGroup);
 
-		// TODO: support multiple visuals
 		// the shape visuals, including all fills and strokes
-		UMaterialExpression* VisualExp = Generate_ShapeVisuals(Builder, NodePos, Layer->Shape, ShapeExp, ParamPrefix, ParamGroup);
+		LayerOutputs.VisualExp = Generate_ShapeVisuals(Builder, NodePos, Layer->Shape, LayerOutputs.ShapeExp, ParamPrefix, ParamGroup);
+	}
 
-		if (VisualExp)
+	// merge this layer with its children
+	if (Layer->Children.Num() > 0)
+	{
+		if (ChildOutputs.VisualExp && ChildOutputs.VisualExp != LayerOutputs.VisualExp)
 		{
-			OutputExp = Generate_MergeShapes(Builder, NodePos, OutputExp, VisualExp, ParamPrefix, ParamGroup);
+			if (LayerOutputs.VisualExp)
+			{
+				LayerOutputs.VisualExp = Generate_MergeVisual(Builder, NodePos, LayerOutputs.VisualExp, ChildOutputs.VisualExp,
+				                                              Layer->MergeOperation, ParamPrefix, ParamGroup);
+			}
+			else
+			{
+				// pass forward output from previous layer to ensure it makes it to the top
+				LayerOutputs.VisualExp = ChildOutputs.VisualExp;
+			}
+		}
+	}
+
+
+	// merge this layer with the previous sibling
+	if (PrevOutputs.ShapeExp && LayerOutputs.ShapeExp)
+	{
+		// TODO: this is weird, just setup explicit shape merging by layer reference, so the layer structure remains only for visuals
+		LayerOutputs.ShapeExp = Generate_MergeShapes(Builder, NodePos, PrevOutputs.ShapeExp, LayerOutputs.ShapeExp,
+		                                             Layer->Shape->ShapeMergeOperation, ParamPrefix, ParamGroup);
+	}
+
+	if (PrevOutputs.VisualExp)
+	{
+		if (LayerOutputs.VisualExp)
+		{
+			LayerOutputs.VisualExp = Generate_MergeVisual(Builder, NodePos, LayerOutputs.VisualExp, PrevOutputs.VisualExp,
+			                                              Layer->MergeOperation, ParamPrefix, ParamGroup);
 		}
 		else
 		{
-			// no visuals, just use the first output from the shape itself
-			OutputExp = ShapeExp;
+			// pass forward output from previous layer to ensure it makes it to the top
+			LayerOutputs.VisualExp = PrevOutputs.VisualExp;
 		}
 	}
 
-	// generate children layers, bottom to top, so that merges can be performed in order
-	for (int32 Idx = Layer->Children.Num() - 1; Idx >= 0; --Idx)
-	{
-		const UMGFXMaterialLayer* ChildLayer = Layer->Children[Idx];
-		UMaterialExpressionNamedRerouteDeclaration* UVsDeclaration = Cast<UMaterialExpressionNamedRerouteDeclaration>(UVsExp);
-		OutputExp = Generate_Layer(Builder, NodePos, ChildLayer, UVsDeclaration, OutputExp);
-	}
-
-	return OutputExp;
+	return LayerOutputs;
 }
 
 UMaterialExpression* FMGFXMaterialEditor::Generate_TransformUVs(FMGFXMaterialBuilder& Builder, FVector2D& NodePos,
@@ -625,6 +672,7 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_ShapeVisuals(FMGFXMaterialBui
                                                                 const UMGFXMaterialShape* Shape, UMaterialExpression* ShapeExp,
                                                                 const FString& ParamPrefix, const FName& ParamGroup)
 {
+	// TODO: support multiple visuals
 	// generate visuals
 	for (const UMGFXMaterialShapeVisual* Visual : Shape->Visuals)
 	{
@@ -642,31 +690,68 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_ShapeVisuals(FMGFXMaterialBui
 	return nullptr;
 }
 
-UMaterialExpression* FMGFXMaterialEditor::Generate_MergeShapes(FMGFXMaterialBuilder& Builder, FVector2D& NodePos,
-                                                               UMaterialExpression* ShapeAExp, UMaterialExpression* ShapeBExp,
+UMaterialExpression* FMGFXMaterialEditor::Generate_MergeVisual(FMGFXMaterialBuilder& Builder, FVector2D& NodePos,
+                                                               UMaterialExpression* AExp, UMaterialExpression* BExp, EMGFXLayerMergeOperation Operation,
                                                                const FString& ParamPrefix, const FName& ParamGroup)
 {
-	// TODO: more merge operations
+	// default to over
+	TSoftObjectPtr<UMaterialFunctionInterface> MergeFunc = nullptr;
 
-	// break out RGB components
-	UMaterialExpressionComponentMask* ShapeAColorExp = Builder.CreateComponentMaskRGB(NodePos);
-	Builder.Connect(ShapeAExp, "", ShapeAColorExp, "");
+	switch (Operation)
+	{
+	case EMGFXLayerMergeOperation::Over:
+		MergeFunc = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Merge_Over.MF_MGFX_Merge_Over"));
+		break;
+	case EMGFXLayerMergeOperation::Add:
+		MergeFunc = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Merge_Add.MF_MGFX_Merge_Add"));
+		break;
+	case EMGFXLayerMergeOperation::Subtract:
+		MergeFunc = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Merge_Subtract.MF_MGFX_Merge_Subtract"));
+		break;
+	case EMGFXLayerMergeOperation::Multiply:
+		MergeFunc = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Merge_Multiply.MF_MGFX_Merge_Multiply"));
+		break;
+	case EMGFXLayerMergeOperation::In:
+		MergeFunc = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Merge_In.MF_MGFX_Merge_In"));
+		break;
+	case EMGFXLayerMergeOperation::Out:
+		MergeFunc = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Merge_Out.MF_MGFX_Merge_Out"));
+		break;
+	case EMGFXLayerMergeOperation::Mask:
+		MergeFunc = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Merge_Mask.MF_MGFX_Merge_Mask"));
+		break;
+	case EMGFXLayerMergeOperation::Stencil:
+		MergeFunc = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Merge_Stencil.MF_MGFX_Merge_Stencil"));
+		break;
+	default: ;
+	}
 
-	UMaterialExpressionComponentMask* ShapeBColorExp = Builder.CreateComponentMaskRGB(NodePos + FVector2D(0, GridSize * 8));
-	Builder.Connect(ShapeBExp, "", ShapeBColorExp, "");
+	if (MergeFunc.IsNull())
+	{
+		// no valid merge function
+		return AExp;
+	}
 
-	UMaterialExpressionComponentMask* ShapeBAlphaExp = Builder.CreateComponentMaskA(NodePos + FVector2D(0, GridSize * 16));
-	Builder.Connect(ShapeBExp, "", ShapeBAlphaExp, "");
+	UMaterialExpressionMaterialFunctionCall* MergeExp = Builder.CreateFunction(NodePos, MergeFunc);
+	Builder.Connect(AExp, "", MergeExp, "A");
+	Builder.Connect(BExp, "", MergeExp, "B");
 
 	NodePos.X += GridSize * 15;
 
-	// lerp using B's alpha
-	UMaterialExpressionLinearInterpolate* ShapeMergeExp = Builder.Create<UMaterialExpressionLinearInterpolate>(NodePos);
-	Builder.Connect(ShapeAColorExp, "", ShapeMergeExp, "A");
-	Builder.Connect(ShapeBColorExp, "", ShapeMergeExp, "B");
-	Builder.Connect(ShapeBAlphaExp, "", ShapeMergeExp, "Alpha");
+	return MergeExp;
+}
 
-	return ShapeMergeExp;
+
+UMaterialExpression* FMGFXMaterialEditor::Generate_MergeShapes(FMGFXMaterialBuilder& Builder, FVector2D& NodePos,
+                                                               UMaterialExpression* AExp, UMaterialExpression* BExp, EMGFXShapeMergeOperation Operation,
+                                                               const FString& ParamPrefix, const FName& ParamGroup)
+{
+	if (Operation == EMGFXShapeMergeOperation::None)
+	{
+		return BExp;
+	}
+
+	return nullptr;
 }
 
 UMaterialExpression* FMGFXMaterialEditor::Generate_Vector2Parameter(FMGFXMaterialBuilder& Builder, FVector2D& NodePos, FVector2f DefaultValue,
@@ -708,26 +793,23 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_ShapeFill(FMGFXMaterialBuilde
 
 	NodePos.X += GridSize * 15;
 
-	// multiply by color
+	// add color param
 	UMaterialExpressionVectorParameter* ColorExp = Builder.Create<UMaterialExpressionVectorParameter>(NodePos + FVector2D(0, GridSize * 8));
 	Builder.ConfigureParameter(ColorExp, FName(ParamPrefix + "Color"), ParamGroup, 40);
 	SET_PROP_R(ColorExp, DefaultValue, Fill->GetColor());
 
 	NodePos.X += GridSize * 15;
 
-	UMaterialExpressionMultiply* AlphaMultExp = Builder.Create<UMaterialExpressionMultiply>(NodePos);
-	Builder.Connect(FillExp, "", AlphaMultExp, "A");
-	Builder.Connect(ColorExp, "A", AlphaMultExp, "B");
+	// mutiply by color, and append to RGBA
+	UMaterialExpressionMaterialFunctionCall* TintExp = Builder.CreateFunction(
+		NodePos, TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Tint.MF_MGFX_Tint")));
+	Builder.Connect(FillExp, "", TintExp, "In");
+	Builder.Connect(ColorExp, "", TintExp, "RGB");
+	Builder.Connect(ColorExp, "A", TintExp, "A");
 
 	NodePos.X += GridSize * 15;
 
-	// append into an RGBA
-	UMaterialExpressionAppendVector* AppendExp = Builder.CreateAppend(NodePos, ColorExp, AlphaMultExp);
-
-	NodePos.X += GridSize * 15;
-
-	// RGB is not premultiplied, Alpha is
-	return AppendExp;
+	return TintExp;
 }
 
 UMaterialExpression* FMGFXMaterialEditor::Generate_ShapeStroke(FMGFXMaterialBuilder& Builder, FVector2D& NodePos,
@@ -753,26 +835,23 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_ShapeStroke(FMGFXMaterialBuil
 
 	NodePos.X += GridSize * 15;
 
-	// multiply by color
+	// add color param
 	UMaterialExpressionVectorParameter* ColorExp = Builder.Create<UMaterialExpressionVectorParameter>(NodePos + FVector2D(0, GridSize * 8));
-	Builder.ConfigureParameter(ColorExp, FName(ParamPrefix + "Color"), ParamGroup, 41);
+	Builder.ConfigureParameter(ColorExp, FName(ParamPrefix + "Color"), ParamGroup, 40);
 	SET_PROP_R(ColorExp, DefaultValue, Stroke->GetColor());
 
 	NodePos.X += GridSize * 15;
 
-	UMaterialExpressionMultiply* AlphaMultExp = Builder.Create<UMaterialExpressionMultiply>(NodePos);
-	Builder.Connect(StrokeExp, "", AlphaMultExp, "A");
-	Builder.Connect(ColorExp, "A", AlphaMultExp, "B");
+	// mutiply by color, and append to RGBA
+	UMaterialExpressionMaterialFunctionCall* TintExp = Builder.CreateFunction(
+		NodePos, TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Tint.MF_MGFX_Tint")));
+	Builder.Connect(StrokeExp, "", TintExp, "In");
+	Builder.Connect(ColorExp, "", TintExp, "RGB");
+	Builder.Connect(ColorExp, "A", TintExp, "A");
 
 	NodePos.X += GridSize * 15;
 
-	// append into an RGBA
-	UMaterialExpressionAppendVector* AppendExp = Builder.CreateAppend(NodePos, ColorExp, AlphaMultExp);
-
-	NodePos.X += GridSize * 15;
-
-	// RGB is not premultiplied, Alpha is
-	return AppendExp;
+	return TintExp;
 }
 
 void FMGFXMaterialEditor::ApplyMaterial(IMaterialEditor* MaterialEditor)

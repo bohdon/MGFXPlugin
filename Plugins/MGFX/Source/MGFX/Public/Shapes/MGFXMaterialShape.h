@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "MGFXMaterialTypes.h"
 #include "UObject/Object.h"
 #include "MGFXMaterialShape.generated.h"
 
@@ -52,6 +53,10 @@ class MGFX_API UMGFXMaterialShape : public UObject
 	GENERATED_BODY()
 
 public:
+	/** The operation to use when merging this shape with the one below. */
+	UPROPERTY(EditAnywhere, Category = "Shape")
+	TEnumAsByte<EMGFXShapeMergeOperation> ShapeMergeOperation;
+
 	UPROPERTY(EditAnywhere, Instanced, Category = "Fill / Stroke")
 	TArray<TObjectPtr<UMGFXMaterialShapeVisual>> Visuals;
 
