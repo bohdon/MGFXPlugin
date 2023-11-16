@@ -185,8 +185,21 @@ void FMGFXMaterialEditor::RegenerateMaterial()
 	MaterialEditor->UpdateMaterialAfterGraphChange();
 
 	ApplyMaterial(MaterialEditor);
+
+	// update preview image
+	if (ArtboardPanel.IsValid())
+	{
+		if (SArtboardPanel::FSlot* Slot = ArtboardPanel->GetWidgetSlot(PreviewImage))
+		{
+			Slot->SetSize(OriginalMGFXMaterial->BaseCanvasSize);
+		}
+	}
 }
 
+FVector2D FMGFXMaterialEditor::GetCanvasSize() const
+{
+	return FVector2D(OriginalMGFXMaterial->BaseCanvasSize);
+}
 
 void FMGFXMaterialEditor::BindCommands()
 {
@@ -236,8 +249,8 @@ TSharedRef<SDockTab> FMGFXMaterialEditor::SpawnTab_Canvas(const FSpawnTabArgs& A
 		+ SOverlay::Slot()
 		.Padding(4.f)
 		[
-			SNew(SArtboardPanel)
-			.ArtboardSize(OriginalMGFXMaterial->BaseCanvasSize)
+			SAssignNew(ArtboardPanel, SArtboardPanel)
+			.ArtboardSize(this, &FMGFXMaterialEditor::GetCanvasSize)
 			.BackgroundBrush(FSlateColorBrush(FLinearColor(0.002f, 0.002f, 0.002f)))
 			.Clipping(EWidgetClipping::ClipToBounds)
 			+ SArtboardPanel::Slot()

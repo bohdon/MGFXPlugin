@@ -16,6 +16,7 @@ UMGFXMaterial::UMGFXMaterial()
 	: BaseCanvasSize(256, 256)
 {
 	RootLayer = CreateDefaultSubobject<UMGFXMaterialLayer>(TEXT("RootLayer"));
+	RootLayer->Name = TEXT("RootLayer");
 }
 
 void UMGFXMaterial::PostLoad()

@@ -79,7 +79,13 @@ public:
 
 	TSharedRef<SWidget> ConstructOverlay();
 
+	/** Remove all children from the panel */
+	void ClearChildren();
+
 	static FSlot::FSlotArguments Slot();
+
+	/** Return the slot of a child widget. */
+	SArtboardPanel::FSlot* GetWidgetSlot(const TSharedPtr<SWidget>& Widget);
 
 	virtual void OnArrangeChildren(const FGeometry& AllottedGeometry, FArrangedChildren& ArrangedChildren) const override;
 	virtual FVector2D ComputeDesiredSize(float LayoutScaleMultiplier) const override;
@@ -152,8 +158,8 @@ protected:
 	/** Offset in the panel the user started the LMB+RMB zoom from */
 	FVector2D ZoomStartOffset;
 
-	/** The total bounds of all artboards in the panel. */
-	FBox2D ArtboardBounds;
+	/** The size of the artboard. */
+	TAttribute<FVector2D> ArtboardSize;
 
 	TPanelChildren<FSlot> Children;
 

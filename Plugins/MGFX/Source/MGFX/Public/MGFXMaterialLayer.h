@@ -41,21 +41,21 @@ public:
 	UMGFXMaterialLayer();
 
 	/** The display name of this layer. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Layer")
 	FString Name;
 
 	/** The index of the layer among all layers. */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Layer")
 	int32 Index;
 
 	/** The layer's transform. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Layer")
 	FMGFXShapeTransform2D Transform;
 
 	/** The shape to create for this layer. */
-	UPROPERTY(EditAnywhere, Instanced)
+	UPROPERTY(EditAnywhere, Instanced, Category = "Shape")
 	TObjectPtr<UMGFXMaterialShape> Shape;
 
-	UPROPERTY(EditAnywhere, Instanced, Category = "Layer")
+	UPROPERTY(EditAnywhere, Instanced, Meta = (TitleProperty = "Name"), Category = "Children")
 	TArray<TObjectPtr<UMGFXMaterialLayer>> Children;
 };

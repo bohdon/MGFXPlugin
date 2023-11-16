@@ -8,6 +8,8 @@
 #include "MGFXMaterialBuilder.h"
 
 class IMaterialEditor;
+class SArtboardPanel;
+class SImage;
 class UMGFXMaterial;
 class UMGFXMaterialShapeFill;
 class UMGFXMaterialShapeStroke;
@@ -38,9 +40,13 @@ public:
 	/** Fully regenerate the target material. */
 	void RegenerateMaterial();
 
+	FVector2D GetCanvasSize() const;
+
 private:
 	/** The original MGFX material asset being edited. */
 	TObjectPtr<UMGFXMaterial> OriginalMGFXMaterial;
+
+	TSharedPtr<SArtboardPanel> ArtboardPanel;
 
 	/** The preview image displaying the material on the canvas. */
 	TSharedPtr<SImage> PreviewImage;

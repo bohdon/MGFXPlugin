@@ -52,7 +52,7 @@ SArtboardPanel::SArtboardPanel()
 
 void SArtboardPanel::Construct(const FArguments& InArgs)
 {
-	ArtboardBounds.Max = InArgs._ArtboardSize.Get();
+	ArtboardSize = InArgs._ArtboardSize;
 	BackgroundBrush = InArgs._BackgroundBrush;
 	bShowArtboardBorder = InArgs._bShowArtboardBorder;
 
@@ -78,9 +78,26 @@ TSharedRef<SWidget> SArtboardPanel::ConstructOverlay()
 		];
 }
 
+void SArtboardPanel::ClearChildren()
+{
+	Children.Empty();
+}
+
 SArtboardPanel::FSlot::FSlotArguments SArtboardPanel::Slot()
 {
 	return FSlot::FSlotArguments(MakeUnique<FSlot>());
+}
+
+SArtboardPanel::FSlot* SArtboardPanel::GetWidgetSlot(const TSharedPtr<SWidget>& Widget)
+{
+	for (int32 Idx = 0; Idx < Children.Num(); ++Idx)
+	{
+		if (Children[Idx].GetWidget() == Widget)
+		{
+			return &Children[Idx];
+		}
+	}
+	return nullptr;
 }
 
 void SArtboardPanel::OnArrangeChildren(const FGeometry& AllottedGeometry, FArrangedChildren& ArrangedChildren) const
@@ -248,13 +265,13 @@ int32 SArtboardPanel::PaintBackground(const FGeometry& AllottedGeometry, const F
 	// draw artboard frame
 	if (bShowArtboardBorder.Get())
 	{
-		constexpr FLinearColor BorderColor = FLinearColor(1.f, 1.f, 1.f, 0.02f);
-		constexpr float ArtboardSize = 512.f;
+		constexpr FLinearColor BorderColor = FLinearColor(1.f, 1.f, 1.f, 0.2f);
+		const FVector2D ArtboardSizeVal = ArtboardSize.Get();
 		const TArray<FVector2D> BorderPoints = {
-			GraphCoordToPanelCoord(FVector2D(0, 0) * ArtboardSize) + FVector2D(-2, -2),
-			GraphCoordToPanelCoord(FVector2D(1, 0) * ArtboardSize) + FVector2D(2, -2),
-			GraphCoordToPanelCoord(FVector2D(1, 1) * ArtboardSize) + FVector2D(2, 2),
-			GraphCoordToPanelCoord(FVector2D(0, 1) * ArtboardSize) + FVector2D(-2, 2),
+			GraphCoordToPanelCoord(FVector2D(0, 0) * ArtboardSizeVal) + FVector2D(-2, -2),
+			GraphCoordToPanelCoord(FVector2D(1, 0) * ArtboardSizeVal) + FVector2D(2, -2),
+			GraphCoordToPanelCoord(FVector2D(1, 1) * ArtboardSizeVal) + FVector2D(2, 2),
+			GraphCoordToPanelCoord(FVector2D(0, 1) * ArtboardSizeVal) + FVector2D(-2, 2),
 			GraphCoordToPanelCoord(FVector2D(0, 0)) + FVector2D(-2, -2),
 		};
 		constexpr float BorderThickness = 1.f;
@@ -279,7 +296,7 @@ void SArtboardPanel::SetViewOffset(FVector2D NewViewOffset, const FGeometry& Alo
 	// min is the furthest to the bottom-right allowed, which accounts for the widget geometry and current zoom
 	const FVector2D ViewOffsetMin = (-AlottedGeometry.GetLocalSize() + ViewOffsetMargin) / GetZoomAmount();
 	// max is based only on artboard size, since 0,0 coordinates are top-left
-	const FVector2D ViewOffsetMax = ArtboardBounds.GetSize() - (ViewOffsetMargin / GetZoomAmount());
+	const FVector2D ViewOffsetMax = ArtboardSize.Get() - (ViewOffsetMargin / GetZoomAmount());
 	const FVector2D ClampedViewOffset = FVector2D(
 		FMath::Clamp(NewViewOffset.X, ViewOffsetMin.X, ViewOffsetMax.X),
 		FMath::Clamp(NewViewOffset.Y, ViewOffsetMin.Y, ViewOffsetMax.Y));
