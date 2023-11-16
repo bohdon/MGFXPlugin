@@ -42,8 +42,6 @@ SArtboardPanel::SArtboardPanel()
 	  ZoomAmountMax(10.f),
 	  bIsPanning(false),
 	  bIsZooming(false),
-	  DragDeltaDistance(0.f),
-	  DragDeltaXY(0.f),
 	  ZoomSensitivity(0.001f),
 	  ZoomWheelSensitivity(0.1f),
 	  Children(this, GET_MEMBER_NAME_CHECKED(SArtboardPanel, Children))
@@ -127,22 +125,6 @@ int32 SArtboardPanel::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedG
 
 	LayerId = SPanel::OnPaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
 
-	if (bIsPanning)
-	{
-		TArray<FVector2D> PanPoints = {
-			MouseDownAbsolutePosition,
-			MouseDownAbsolutePosition
-		};
-		FSlateDrawElement::MakeLines(
-			OutDrawElements,
-			LayerId,
-			AllottedGeometry.ToPaintGeometry(),
-			PanPoints,
-			ESlateDrawEffect::None,
-			FLinearColor::Red
-		);
-	}
-
 	return LayerId;
 }
 
@@ -155,17 +137,7 @@ FReply SArtboardPanel::OnMouseButtonDown(const FGeometry& MyGeometry, const FPoi
 	if (MouseEvent.GetEffectingButton() == EKeys::RightMouseButton || MouseEvent.GetEffectingButton() == EKeys::MiddleMouseButton)
 	{
 		bIsPanning = false;
-		PanViewOffsetStart = ViewOffset;
-		MouseDownAbsolutePosition = MouseEvent.GetLastScreenSpacePosition();
-
-		Reply.CaptureMouse(SharedThis(this));
-	}
-
-	if (MouseEvent.GetEffectingButton() == EKeys::RightMouseButton || FSlateApplication::Get().IsUsingTrackpad())
-	{
-		DragDeltaDistance = 0.0f;
-		ZoomStartOffset = MyGeometry.AbsoluteToLocal(MouseEvent.GetLastScreenSpacePosition());
-		UE_LOG(LogTemp, Log, TEXT("ZoomStartOffset: %s"), *ZoomStartOffset.ToString());
+		bIsZooming = false;
 
 		Reply.CaptureMouse(SharedThis(this));
 	}
@@ -207,19 +179,22 @@ FReply SArtboardPanel::OnMouseMove(const FGeometry& MyGeometry, const FPointerEv
 	if (bShouldZoom)
 	{
 		const FVector2D CursorDelta = MouseEvent.GetCursorDelta();
-		DragDeltaDistance += CursorDelta.X + CursorDelta.Y;
 
-		const float ZoomDelta = DragDeltaDistance * ZoomSensitivity;
+		const float ZoomDelta = (CursorDelta.X + CursorDelta.Y) * ZoomSensitivity;
 
 		// remove mouse movement that's been 'used up' by zooming
 		if (ZoomDelta != 0)
 		{
-			DragDeltaDistance -= (ZoomDelta / ZoomSensitivity);
+			if (!bIsZooming)
+			{
+				// initialize zoom coordinates
+				ZoomFocalPosition = MyGeometry.AbsoluteToLocal(MouseEvent.GetLastScreenSpacePosition());
+			}
+
 			bIsZooming = true;
-
-			ApplyZoomDelta(ZoomDelta, ZoomStartOffset, MyGeometry);
-
 			bIsPanning = false;
+
+			ApplyZoomDelta(ZoomDelta, ZoomFocalPosition, MyGeometry);
 		}
 
 		return FReply::Handled();
@@ -227,10 +202,17 @@ FReply SArtboardPanel::OnMouseMove(const FGeometry& MyGeometry, const FPointerEv
 
 	if (bIsRMBDown || bIsMMBDown)
 	{
+		if (!bIsPanning)
+		{
+			// initialize pan coordinates
+			PanViewOffsetStart = ViewOffset;
+			PanStartPosition = MouseEvent.GetLastScreenSpacePosition();
+		}
+
 		bIsPanning = true;
 		bIsZooming = false;
 
-		const FVector2D DeltaViewOffset = (MouseDownAbsolutePosition - MouseEvent.GetScreenSpacePosition()) / MyGeometry.Scale / GetZoomAmount();
+		const FVector2D DeltaViewOffset = (PanStartPosition - MouseEvent.GetScreenSpacePosition()) / MyGeometry.Scale / GetZoomAmount();
 		const FVector2D NewViewOffset = PanViewOffsetStart + DeltaViewOffset;
 		SetViewOffset(NewViewOffset, MyGeometry);
 
@@ -243,9 +225,9 @@ FReply SArtboardPanel::OnMouseMove(const FGeometry& MyGeometry, const FPointerEv
 FReply SArtboardPanel::OnMouseWheel(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
 	// zoom into the focus point; i.e. keep it the same fraction offset in the panel
-	const FVector2D FocusPoint = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
+	const FVector2D FocalPosition = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
 	const float ZoomDelta = MouseEvent.GetWheelDelta() * ZoomWheelSensitivity;
-	ApplyZoomDelta(ZoomDelta, FocusPoint, MyGeometry);
+	ApplyZoomDelta(ZoomDelta, FocalPosition, MyGeometry);
 
 	return FReply::Handled();
 }
@@ -291,10 +273,10 @@ int32 SArtboardPanel::PaintBackground(const FGeometry& AllottedGeometry, const F
 	return LayerId;
 }
 
-void SArtboardPanel::SetViewOffset(FVector2D NewViewOffset, const FGeometry& AlottedGeometry)
+void SArtboardPanel::SetViewOffset(FVector2D NewViewOffset, const FGeometry& AllottedGeometry)
 {
 	// min is the furthest to the bottom-right allowed, which accounts for the widget geometry and current zoom
-	const FVector2D ViewOffsetMin = (-AlottedGeometry.GetLocalSize() + ViewOffsetMargin) / GetZoomAmount();
+	const FVector2D ViewOffsetMin = (-AllottedGeometry.GetLocalSize() + ViewOffsetMargin) / GetZoomAmount();
 	// max is based only on artboard size, since 0,0 coordinates are top-left
 	const FVector2D ViewOffsetMax = ArtboardSize.Get() - (ViewOffsetMargin / GetZoomAmount());
 	const FVector2D ClampedViewOffset = FVector2D(
@@ -304,8 +286,6 @@ void SArtboardPanel::SetViewOffset(FVector2D NewViewOffset, const FGeometry& Alo
 	if (ViewOffset != ClampedViewOffset)
 	{
 		ViewOffset = ClampedViewOffset;
-
-		UE_LOG(LogTemp, Log, TEXT("ViewOffset: %s"), *ViewOffset.ToString());
 
 		OnViewOffsetChanged();
 	}
@@ -318,29 +298,21 @@ void SArtboardPanel::SetZoomAmount(float NewZoomAmount)
 	{
 		ZoomAmount = ClampedZoomAmount;
 
-		UE_LOG(LogTemp, Log, TEXT("ZoomAmount: %0.3f"), ZoomAmount);
-
 		OnZoomChanged();
 	}
 }
 
-void SArtboardPanel::ApplyZoomDelta(float ZoomDelta, const FVector2D& WidgetSpaceZoomOrigin, const FGeometry& AlottedGeometry)
+void SArtboardPanel::ApplyZoomDelta(float ZoomDelta, const FVector2D& LocalFocalPosition, const FGeometry& AllottedGeometry)
 {
 	// we want to zoom into this point; i.e. keep it the same fraction offset into the panel
-	const FVector2D FocusPoint = PanelCoordToGraphCoord(WidgetSpaceZoomOrigin);
+	const FVector2D GraphFocalPosition = PanelCoordToGraphCoord(LocalFocalPosition);
 
 	// instead of just adding, apply proportional so 'zoom speed' is the same at all zoom levels
 	SetZoomAmount(ZoomAmount *= (1.f + ZoomDelta));
 
 	// adjust offset to zoom around the target position
-	const FVector2D NewViewOffset = FocusPoint - WidgetSpaceZoomOrigin / GetZoomAmount();
-
-	// offset the panning start in case panning occurs later
-	PanViewOffsetStart += NewViewOffset - ViewOffset;
-
-	SetViewOffset(NewViewOffset, AlottedGeometry);
-
-	DragDeltaDistance = 0.0f;
+	const FVector2D NewViewOffset = GraphFocalPosition - LocalFocalPosition / GetZoomAmount();
+	SetViewOffset(NewViewOffset, AllottedGeometry);
 }
 
 FVector2D SArtboardPanel::GraphCoordToPanelCoord(const FVector2D& GraphPosition) const

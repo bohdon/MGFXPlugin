@@ -103,13 +103,13 @@ public:
 
 	FVector2D GetViewOffset() const { return ViewOffset; }
 
-	void SetViewOffset(FVector2D NewViewOffset, const FGeometry& AlottedGeometry);
+	void SetViewOffset(FVector2D NewViewOffset, const FGeometry& AllottedGeometry);
 
 	float GetZoomAmount() const { return ZoomAmount; }
 
 	void SetZoomAmount(float NewZoomAmount);
 
-	void ApplyZoomDelta(float ZoomDelta, const FVector2D& WidgetSpaceZoomOrigin, const FGeometry& AlottedGeometry);
+	void ApplyZoomDelta(float ZoomDelta, const FVector2D& LocalFocalPosition, const FGeometry& AllottedGeometry);
 
 	FVector2D GraphCoordToPanelCoord(const FVector2D& GraphPosition) const;
 
@@ -137,14 +137,8 @@ protected:
 	/** Is a zoom operation in progress? */
 	bool bIsZooming;
 
-	/** The total distance that the mouse has been dragged while down */
-	float DragDeltaDistance;
-
-	/** The additive X and Y components of mouse drag (used when zooming) */
-	float DragDeltaXY;
-
-	/** Screen space position of the mouse during the last mouse down. */
-	FVector2D MouseDownAbsolutePosition;
+	/** Absolute position of the mouse when the panning operation started. */
+	FVector2D PanStartPosition;
 
 	/** The view offset at the start of the current panning operation. */
 	FVector2D PanViewOffsetStart;
@@ -155,8 +149,8 @@ protected:
 	/** Sensitivity of mouse wheel zoom operation. */
 	float ZoomWheelSensitivity;
 
-	/** Offset in the panel the user started the LMB+RMB zoom from */
-	FVector2D ZoomStartOffset;
+	/** Local position in the panel where the zoom operation began and zoom in/out towards. */
+	FVector2D ZoomFocalPosition;
 
 	/** The size of the artboard. */
 	TAttribute<FVector2D> ArtboardSize;
