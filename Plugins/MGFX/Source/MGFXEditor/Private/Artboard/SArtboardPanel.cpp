@@ -53,6 +53,15 @@ SArtboardPanel::SArtboardPanel()
 void SArtboardPanel::Construct(const FArguments& InArgs)
 {
 	ArtboardBounds.Max = InArgs._ArtboardSize.Get();
+	BackgroundBrush = InArgs._BackgroundBrush;
+	bShowArtboardBorder = InArgs._bShowArtboardBorder;
+
+	if (!(BackgroundBrush.IsSet() || BackgroundBrush.IsBound()))
+	{
+		const FSlateBrush* DefaultBackground = FAppStyle::GetBrush(TEXT("Graph.Panel.SolidBackground"));
+		const FSlateBrush* CustomBackground = &GetDefault<UEditorStyleSettings>()->GraphBackgroundBrush;
+		BackgroundBrush.Set(CustomBackground->HasUObject() ? *CustomBackground : *DefaultBackground);
+	}
 
 	Children.AddSlots(MoveTemp(const_cast<TArray<FSlot::FSlotArguments>&>(InArgs._Slots)));
 }
@@ -97,12 +106,7 @@ FChildren* SArtboardPanel::GetChildren()
 int32 SArtboardPanel::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect,
                               FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
 {
-	// use same background color as node graphs
-	const FSlateBrush* DefaultBackground = FAppStyle::GetBrush(TEXT("Graph.Panel.SolidBackground"));
-	const FSlateBrush* CustomBackground = &GetDefault<UEditorStyleSettings>()->GraphBackgroundBrush;
-	const FSlateBrush* BackgroundImage = CustomBackground->HasUObject() ? CustomBackground : DefaultBackground;
-
-	LayerId = PaintBackground(BackgroundImage, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
+	LayerId = PaintBackground(AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
 
 	LayerId = SPanel::OnPaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
 
@@ -229,42 +233,43 @@ FReply SArtboardPanel::OnMouseWheel(const FGeometry& MyGeometry, const FPointerE
 	return FReply::Handled();
 }
 
-int32 SArtboardPanel::PaintBackground(const FSlateBrush* BackgroundBrush, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect,
+int32 SArtboardPanel::PaintBackground(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect,
                                       FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
 {
-	const FLinearColor BackgroundTintColor(BackgroundBrush->TintColor.GetSpecifiedColor());
-
 	FSlateDrawElement::MakeBox(
 		OutDrawElements,
 		LayerId,
 		AllottedGeometry.ToPaintGeometry(),
-		BackgroundBrush,
+		&BackgroundBrush.Get(),
 		ESlateDrawEffect::None,
-		BackgroundTintColor
+		BackgroundBrush.Get().TintColor.GetSpecifiedColor()
 	);
 
 	// draw artboard frame
-	constexpr FLinearColor BorderColor = FLinearColor(1.f, 1.f, 1.f, 0.02f);
-	constexpr float ArtboardSize = 512.f;
-	const TArray<FVector2D> BorderPoints = {
-		GraphCoordToPanelCoord(FVector2D(0, 0) * ArtboardSize) + FVector2D(-2, -2),
-		GraphCoordToPanelCoord(FVector2D(1, 0) * ArtboardSize) + FVector2D(2, -2),
-		GraphCoordToPanelCoord(FVector2D(1, 1) * ArtboardSize) + FVector2D(2, 2),
-		GraphCoordToPanelCoord(FVector2D(0, 1) * ArtboardSize) + FVector2D(-2, 2),
-		GraphCoordToPanelCoord(FVector2D(0, 0)) + FVector2D(-2, -2),
-	};
-	constexpr float BorderThickness = 1.f;
+	if (bShowArtboardBorder.Get())
+	{
+		constexpr FLinearColor BorderColor = FLinearColor(1.f, 1.f, 1.f, 0.02f);
+		constexpr float ArtboardSize = 512.f;
+		const TArray<FVector2D> BorderPoints = {
+			GraphCoordToPanelCoord(FVector2D(0, 0) * ArtboardSize) + FVector2D(-2, -2),
+			GraphCoordToPanelCoord(FVector2D(1, 0) * ArtboardSize) + FVector2D(2, -2),
+			GraphCoordToPanelCoord(FVector2D(1, 1) * ArtboardSize) + FVector2D(2, 2),
+			GraphCoordToPanelCoord(FVector2D(0, 1) * ArtboardSize) + FVector2D(-2, 2),
+			GraphCoordToPanelCoord(FVector2D(0, 0)) + FVector2D(-2, -2),
+		};
+		constexpr float BorderThickness = 1.f;
 
-	FSlateDrawElement::MakeLines(
-		OutDrawElements,
-		LayerId,
-		AllottedGeometry.ToPaintGeometry(),
-		BorderPoints,
-		ESlateDrawEffect::None,
-		BorderColor,
-		true,
-		BorderThickness
-	);
+		FSlateDrawElement::MakeLines(
+			OutDrawElements,
+			LayerId,
+			AllottedGeometry.ToPaintGeometry(),
+			BorderPoints,
+			ESlateDrawEffect::None,
+			BorderColor,
+			true,
+			BorderThickness
+		);
+	}
 
 	return LayerId;
 }

@@ -39,9 +39,17 @@ const FName FMGFXMaterialEditor::DetailsTabId(TEXT("MGFXMaterialEditorDetailsTab
 const FName FMGFXMaterialEditor::CanvasTabId(TEXT("MGFXMaterialEditorCanvasTab"));
 const FName FMGFXMaterialEditor::Reroute_CanvasUVs(TEXT("CanvasUVs"));
 const FName FMGFXMaterialEditor::Reroute_FilterWidth(TEXT("FilterWidth"));
-const FName FMGFXMaterialEditor::Reroute_ShapesOutput(TEXT("ShapesOutput"));
+const FName FMGFXMaterialEditor::Reroute_LayersOutput(TEXT("LayersOutput"));
 const int32 FMGFXMaterialEditor::GridSize(16);
 
+
+FMGFXMaterialEditor::FMGFXMaterialEditor()
+	: NodePosBaselineLeft(GridSize * -64),
+	  UVRerouteColor(FLinearColor(0.02f, 1.f, 0.7f)),
+	  SDFRerouteColor(FLinearColor(0.f, 0.f, 0.f)),
+	  RGBARerouteColor(FLinearColor(0.22f, .09f, 0.55f))
+{
+}
 
 void FMGFXMaterialEditor::InitMGFXMaterialEditor(const EToolkitMode::Type Mode,
                                                  const TSharedPtr<IToolkitHost>& InitToolkitHost,
@@ -167,10 +175,10 @@ void FMGFXMaterialEditor::RegenerateMaterial()
 	Generate_DeleteAllNodes(Builder);
 	Generate_AddWarningComment(Builder);
 	Generate_AddUVsBoilerplate(Builder);
-	Generate_Shapes(Builder);
+	Generate_Layers(Builder);
 
-	// connect shapes output to opacity
-	UMaterialExpressionNamedRerouteUsage* OutputUsageExp = Builder.CreateNamedRerouteUsage(FVector2D(GridSize * -16, 0), Reroute_ShapesOutput);
+	// connect layer output to final color
+	UMaterialExpressionNamedRerouteUsage* OutputUsageExp = Builder.CreateNamedRerouteUsage(FVector2D(GridSize * -16, 0), Reroute_LayersOutput);
 	Builder.ConnectProperty(OutputUsageExp, "", MP_EmissiveColor);
 
 	MaterialGraph->LinkGraphNodesFromMaterial();
@@ -230,6 +238,7 @@ TSharedRef<SDockTab> FMGFXMaterialEditor::SpawnTab_Canvas(const FSpawnTabArgs& A
 		[
 			SNew(SArtboardPanel)
 			.ArtboardSize(OriginalMGFXMaterial->BaseCanvasSize)
+			.BackgroundBrush(FSlateColorBrush(FLinearColor(0.002f, 0.002f, 0.002f)))
 			.Clipping(EWidgetClipping::ClipToBounds)
 			+ SArtboardPanel::Slot()
 			  .Position(FVector2D::ZeroVector)
@@ -305,8 +314,7 @@ void FMGFXMaterialEditor::Generate_AddUVsBoilerplate(FMGFXMaterialBuilder& Build
 	NodePos.X += GridSize * 15;
 
 	// output to canvas UVs reroute
-	constexpr FLinearColor OutputColor(0.02f, 1.f, 0.7f);
-	UMaterialExpressionNamedRerouteDeclaration* OutputRerouteExp = Builder.CreateNamedReroute(NodePos, Reroute_CanvasUVs, OutputColor);
+	UMaterialExpressionNamedRerouteDeclaration* OutputRerouteExp = Builder.CreateNamedReroute(NodePos, Reroute_CanvasUVs, UVRerouteColor);
 	Builder.Connect(MultiplyExp, "", OutputRerouteExp, "");
 
 	NodePos.X += GridSize * 15;
@@ -349,15 +357,12 @@ void FMGFXMaterialEditor::Generate_AddUVsBoilerplate(FMGFXMaterialBuilder& Build
 	}
 
 	// add filter width reroute
-	UMaterialExpressionNamedRerouteDeclaration* FilterWidthRerouteExp = Builder.CreateNamedReroute(NodePos, Reroute_FilterWidth, OutputColor);
+	UMaterialExpressionNamedRerouteDeclaration* FilterWidthRerouteExp = Builder.CreateNamedReroute(NodePos, Reroute_FilterWidth);
 	Builder.Connect(FilterWidthExp, "", FilterWidthRerouteExp, "");
 }
 
-void FMGFXMaterialEditor::Generate_Shapes(FMGFXMaterialBuilder& Builder)
+void FMGFXMaterialEditor::Generate_Layers(FMGFXMaterialBuilder& Builder)
 {
-	const FLinearColor OutputColor(0.22f, .09f, 0.55f);
-
-	constexpr float NodePosBaselineLeft = GridSize * -64;
 	FVector2D NodePos(NodePosBaselineLeft, GridSize * 80);
 
 	// start with background color
@@ -366,51 +371,67 @@ void FMGFXMaterialEditor::Generate_Shapes(FMGFXMaterialBuilder& Builder)
 
 	NodePos.X += GridSize * 15;
 
-	UMaterialExpression* ShapesOutputExp = BGColorExp;
-
-	// eventually assign the shapes output for connecting to named reroute
-	for (int32 Idx = 0; Idx < OriginalMGFXMaterial->Layers.Num(); ++Idx)
-	{
-		const FMGFXMaterialLayer& Layer = OriginalMGFXMaterial->Layers[Idx];
-
-		const FString ParamPrefix = Layer.GetName(Idx) + ".";
-		const FName ParamGroup = FName(FString::Printf(TEXT("[%d] %s"), Idx, *Layer.GetName(Idx)));
-
-		NodePos.X = NodePosBaselineLeft;
-		NodePos.Y += GridSize * 40;
-
-		// convert transform to UVs
-		UMaterialExpressionNamedRerouteUsage* CanvasUVsExp = Builder.CreateNamedRerouteUsage(NodePos, Reroute_CanvasUVs);
-
-		NodePos.X += GridSize * 15;
-
-		UMaterialExpression* LayerUVsExp = Generate_TransformUVs(Builder, NodePos, Layer.Transform, CanvasUVsExp, ParamPrefix, ParamGroup);
-
-		// create shape
-		if (Layer.Shape)
-		{
-			// the shape, with an SDF and fill output
-			UMaterialExpression* ShapeExp = Generate_Shape(Builder, NodePos, Layer.Shape, LayerUVsExp, ParamPrefix, ParamGroup);
-			check(ShapeExp);
-			// the shape visuals, including all fills and strokes
-			UMaterialExpression* VisualExp = Generate_ShapeVisuals(Builder, NodePos, Layer.Shape, ShapeExp, ParamPrefix, ParamGroup);
-			if (VisualExp)
-			{
-				ShapesOutputExp = Generate_MergeShapes(Builder, NodePos, ShapesOutputExp, VisualExp, ParamPrefix, ParamGroup);
-			}
-			else
-			{
-				// no visuals, just use the first output from the shape itself
-				ShapesOutputExp = ShapeExp;
-			}
-		}
-	}
+	// generate all layers recursively
+	check(OriginalMGFXMaterial->RootLayer);
+	UMaterialExpression* LayerOutputExp = Generate_Layer(Builder, NodePos, OriginalMGFXMaterial->RootLayer, BGColorExp);
 
 	NodePos.X += GridSize * 15;
 
-	// create shapes output reroute
-	UMaterialExpressionNamedRerouteDeclaration* OutputRerouteExp = Builder.CreateNamedReroute(NodePos, Reroute_ShapesOutput, OutputColor);
-	Builder.Connect(ShapesOutputExp, "", OutputRerouteExp, "");
+	// connect to layers output reroute
+	UMaterialExpressionNamedRerouteDeclaration* OutputRerouteExp = Builder.CreateNamedReroute(NodePos, Reroute_LayersOutput, RGBARerouteColor);
+	Builder.Connect(LayerOutputExp, "", OutputRerouteExp, "");
+}
+
+UMaterialExpression* FMGFXMaterialEditor::Generate_Layer(FMGFXMaterialBuilder& Builder, FVector2D& NodePos,
+                                                         const UMGFXMaterialLayer* Layer, UMaterialExpression* OutputExp)
+{
+	const FString LayerName = Layer->Name.IsEmpty() ? Layer->GetName() : Layer->Name;
+	const FString ParamPrefix = LayerName + ".";
+	const FName ParamGroup = FName(FString::Printf(TEXT("[%d] %s"), Layer->Index, *LayerName));
+
+	// reset baseline and move to new line
+	NodePos.X = NodePosBaselineLeft;
+	NodePos.Y += GridSize * 40;
+
+	// reuse base canvas UVs
+	UMaterialExpressionNamedRerouteUsage* CanvasUVsExp = Builder.CreateNamedRerouteUsage(NodePos, Reroute_CanvasUVs);
+
+	NodePos.X += GridSize * 15;
+
+	// apply layer transform (if needed)
+	UMaterialExpression* LayerUVsExp = Generate_TransformUVs(Builder, NodePos, Layer->Transform, CanvasUVsExp, ParamPrefix, ParamGroup);
+
+	// create shape
+	if (Layer->Shape)
+	{
+		// the shape, with an SDF output
+		UMaterialExpression* ShapeExp = Generate_Shape(Builder, NodePos, Layer->Shape, LayerUVsExp, ParamPrefix, ParamGroup);
+		check(ShapeExp);
+
+		// TODO: support multiple visuals
+		// the shape visuals, including all fills and strokes
+		UMaterialExpression* VisualExp = Generate_ShapeVisuals(Builder, NodePos, Layer->Shape, ShapeExp, ParamPrefix, ParamGroup);
+
+		if (VisualExp)
+		{
+			OutputExp = Generate_MergeShapes(Builder, NodePos, OutputExp, VisualExp, ParamPrefix, ParamGroup);
+		}
+		else
+		{
+			// no visuals, just use the first output from the shape itself
+			OutputExp = ShapeExp;
+		}
+	}
+
+	// TODO: pass parent uvs to children
+	// generate children layers
+	for (int32 Idx = 0; Idx < Layer->Children.Num(); ++Idx)
+	{
+		const UMGFXMaterialLayer* ChildLayer = Layer->Children[Idx];
+		OutputExp = Generate_Layer(Builder, NodePos, ChildLayer, OutputExp);
+	}
+
+	return OutputExp;
 }
 
 UMaterialExpression* FMGFXMaterialEditor::Generate_TransformUVs(FMGFXMaterialBuilder& Builder, FVector2D& NodePos,

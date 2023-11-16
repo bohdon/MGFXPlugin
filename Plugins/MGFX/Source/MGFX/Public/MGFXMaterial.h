@@ -3,34 +3,15 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "MGFXMaterialLayer.h"
 #include "Materials/Material.h"
 #include "MGFXMaterial.generated.h"
 
-
 class UMGFXMaterialShape;
 
-USTRUCT(BlueprintType)
-struct FMGFXShapeTransform2D
-{
-	GENERATED_BODY()
-
-	/** When true, all values will be setup as animatable parameters, otherwise they may be optimized out. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	bool bAnimatable = false;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FVector2f Location = FVector2f(0.f, 0.f);
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float Rotation = 0.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FVector2f Scale = FVector2f(1, 1);
-};
-
 
 USTRUCT(BlueprintType)
-struct MGFX_API FMGFXMaterialLayer
+struct MGFX_API FMGFXMaterialLayer_DEPRECATED
 {
 	GENERATED_BODY()
 
@@ -90,7 +71,14 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Advanced")
 	TObjectPtr<UMaterial> GeneratedMaterial;
 
-	/** The layers in this material. */
-	UPROPERTY(EditAnywhere, Meta = (TitleProperty = "Name"), Category = "Shapes")
-	TArray<FMGFXMaterialLayer> Layers;
+	/** The root layer containing all other layers in the material. */
+	UPROPERTY(EditAnywhere, Instanced, NoClear, Category = "Layers")
+	TObjectPtr<UMGFXMaterialLayer> RootLayer;
+
+	virtual void PostLoad() override;
+
+protected:
+	/** DEPRECATED. The layers in this material. */
+	UPROPERTY(Meta = (DeprecatedProperty))
+	TArray<FMGFXMaterialLayer_DEPRECATED> Layers;
 };

@@ -20,6 +20,8 @@ class UMaterialExpressionNamedRerouteDeclaration;
 class MGFXEDITOR_API FMGFXMaterialEditor : public IMGFXMaterialEditor
 {
 public:
+	FMGFXMaterialEditor();
+
 	/** Initialize the editor for a material. */
 	void InitMGFXMaterialEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, UMGFXMaterial* InMGFXMaterial);
 
@@ -46,6 +48,18 @@ private:
 	/** The slate brush displaying the preview image. */
 	FSlateBrush PreviewImageBrush;
 
+	/** Leftmost position where nodes for each layer should be aligned in the generated material. */
+	float NodePosBaselineLeft;
+
+	/** Reroute color to use for UVs. */
+	FLinearColor UVRerouteColor;
+
+	/** Reroute color to use for SDF shapes. */
+	FLinearColor SDFRerouteColor;
+
+	/** Reroute color to use for RGBA channels. */
+	FLinearColor RGBARerouteColor;
+
 	void BindCommands();
 	void ExtendToolbar();
 
@@ -61,8 +75,11 @@ private:
 	/** Create boilerplate UVs based on desired canvas size. */
 	void Generate_AddUVsBoilerplate(FMGFXMaterialBuilder& Builder);
 
-	/** Generate all shape layers and combine them. */
-	void Generate_Shapes(FMGFXMaterialBuilder& Builder);
+	/** Generate all layers and combine them. */
+	void Generate_Layers(FMGFXMaterialBuilder& Builder);
+
+	/** Generate a layer and all it's children recursively. */
+	UMaterialExpression* Generate_Layer(FMGFXMaterialBuilder& Builder, FVector2D& NodePos, const UMGFXMaterialLayer* Layer, UMaterialExpression* OutputExp);
 
 	/** Generate material nodes to apply a 2D transform. */
 	UMaterialExpression* Generate_TransformUVs(FMGFXMaterialBuilder& Builder, FVector2D& NodePos,
@@ -113,6 +130,6 @@ public:
 	static const FName CanvasTabId;
 	static const FName Reroute_CanvasUVs;
 	static const FName Reroute_FilterWidth;
-	static const FName Reroute_ShapesOutput;
+	static const FName Reroute_LayersOutput;
 	static const int32 GridSize;
 };
