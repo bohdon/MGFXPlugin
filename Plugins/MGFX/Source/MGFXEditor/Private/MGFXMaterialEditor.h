@@ -7,6 +7,7 @@
 #include "MGFXMaterialTypes.h"
 #include "MGFXMaterialBuilder.h"
 
+class SMGFXMaterialEditorCanvas;
 class IMaterialEditor;
 class SArtboardPanel;
 class SImage;
@@ -52,6 +53,10 @@ public:
 	virtual FLinearColor GetWorldCentricTabColorScale() const override;
 	virtual void RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager) override;
 
+
+	/** Return the generated material asset being edited. */
+	UMGFXMaterial* GetOriginalMGFXMaterial() const { return OriginalMGFXMaterial; }
+
 	/** Return the generated material asset being edited. */
 	UMaterial* GetGeneratedMaterial() const;
 
@@ -61,16 +66,10 @@ public:
 	FVector2D GetCanvasSize() const;
 
 private:
+	TSharedPtr<SMGFXMaterialEditorCanvas> MGFXMaterialEditorCanvas;
+
 	/** The original MGFX material asset being edited. */
 	TObjectPtr<UMGFXMaterial> OriginalMGFXMaterial;
-
-	TSharedPtr<SArtboardPanel> ArtboardPanel;
-
-	/** The preview image displaying the material on the canvas. */
-	TSharedPtr<SImage> PreviewImage;
-
-	/** The slate brush displaying the preview image. */
-	FSlateBrush PreviewImageBrush;
 
 	/** Leftmost position where nodes for each layer should be aligned in the generated material. */
 	float NodePosBaselineLeft;

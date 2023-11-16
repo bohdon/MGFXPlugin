@@ -9,21 +9,16 @@
 #include "MGFXMaterial.h"
 #include "MGFXMaterialEditorCommands.h"
 #include "MGFXPropertyMacros.h"
-#include "Artboard/SArtboardPanel.h"
+#include "SMGFXMaterialEditorCanvas.h"
 #include "MaterialGraph/MaterialGraph.h"
-#include "Materials/MaterialExpressionAdd.h"
 #include "Materials/MaterialExpressionAppendVector.h"
-#include "Materials/MaterialExpressionComponentMask.h"
 #include "Materials/MaterialExpressionConstant.h"
 #include "Materials/MaterialExpressionConstant2Vector.h"
 #include "Materials/MaterialExpressionConstant3Vector.h"
 #include "Materials/MaterialExpressionConstant4Vector.h"
 #include "Materials/MaterialExpressionDivide.h"
-#include "Materials/MaterialExpressionLinearInterpolate.h"
-#include "Materials/MaterialExpressionMax.h"
 #include "Materials/MaterialExpressionMultiply.h"
 #include "Materials/MaterialExpressionNamedReroute.h"
-#include "Materials/MaterialExpressionOneMinus.h"
 #include "Materials/MaterialExpressionScalarParameter.h"
 #include "Materials/MaterialExpressionSubtract.h"
 #include "Materials/MaterialExpressionVectorParameter.h"
@@ -188,14 +183,9 @@ void FMGFXMaterialEditor::RegenerateMaterial()
 
 	ApplyMaterial(MaterialEditor);
 
-	// update preview image
-	if (ArtboardPanel.IsValid())
-	{
-		if (SArtboardPanel::FSlot* Slot = ArtboardPanel->GetWidgetSlot(PreviewImage))
-		{
-			Slot->SetSize(OriginalMGFXMaterial->BaseCanvasSize);
-		}
-	}
+	// TODO: use events to keep this up to date
+	// update canvas artboard
+	MGFXMaterialEditorCanvas->UpdateArtboardSize();
 }
 
 FVector2D FMGFXMaterialEditor::GetCanvasSize() const
@@ -240,29 +230,10 @@ void FMGFXMaterialEditor::ExtendToolbar()
 
 TSharedRef<SDockTab> FMGFXMaterialEditor::SpawnTab_Canvas(const FSpawnTabArgs& Args)
 {
-	check(OriginalMGFXMaterial);
-
-	// TODO: ensure a generated material is assigned? or update it on change
-	PreviewImageBrush.SetResourceObject(OriginalMGFXMaterial->GeneratedMaterial);
-
 	return SNew(SDockTab)
 	[
-		SNew(SOverlay)
-		+ SOverlay::Slot()
-		.Padding(4.f)
-		[
-			SAssignNew(ArtboardPanel, SArtboardPanel)
-			.ArtboardSize(this, &FMGFXMaterialEditor::GetCanvasSize)
-			.BackgroundBrush(FSlateColorBrush(FLinearColor(0.002f, 0.002f, 0.002f)))
-			.Clipping(EWidgetClipping::ClipToBounds)
-			+ SArtboardPanel::Slot()
-			  .Position(FVector2D::ZeroVector)
-			  .Size(OriginalMGFXMaterial->BaseCanvasSize)
-			[
-				SAssignNew(PreviewImage, SImage)
-				.Image(&PreviewImageBrush)
-			]
-		]
+		SAssignNew(MGFXMaterialEditorCanvas, SMGFXMaterialEditorCanvas)
+		.MGFXMaterialEditor(SharedThis(this))
 	];
 }
 

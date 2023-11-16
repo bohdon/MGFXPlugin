@@ -101,6 +101,8 @@ public:
 
 	virtual int32 PaintBackground(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect,
 	                              FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const;
+	virtual int32 PaintBorder(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect,
+	                          FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const;
 	virtual int32 PaintSoftwareCursor(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect,
 	                                  FSlateWindowElementList& OutDrawElements, int32 LayerId) const;
 
@@ -119,6 +121,16 @@ public:
 	FVector2D GraphCoordToPanelCoord(const FVector2D& GraphPosition) const;
 
 	FVector2D PanelCoordToGraphCoord(const FVector2D& PanelPosition) const;
+
+	FVector2D GetArtboardSize() const
+	{
+		return ArtboardSize.Get();
+	}
+
+	void SetArtboardSize(TAttribute<FVector2D> InSize)
+	{
+		ArtboardSize = MoveTemp(InSize);
+	}
 
 protected:
 	/** The current viewing offset of the panel. */

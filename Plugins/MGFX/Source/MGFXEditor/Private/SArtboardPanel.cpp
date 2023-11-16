@@ -132,6 +132,7 @@ int32 SArtboardPanel::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedG
 	++LayerId;
 	LayerId = SPanel::OnPaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
 
+	LayerId = PaintBorder(AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
 	LayerId = PaintSoftwareCursor(AllottedGeometry, MyCullingRect, OutDrawElements, LayerId);
 
 	return LayerId;
@@ -243,8 +244,8 @@ FReply SArtboardPanel::OnMouseWheel(const FGeometry& MyGeometry, const FPointerE
 	return FReply::Handled();
 }
 
-int32 SArtboardPanel::PaintBackground(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect,
-                                      FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
+int32 SArtboardPanel::PaintBackground(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements,
+                                      int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
 {
 	FSlateDrawElement::MakeBox(
 		OutDrawElements,
@@ -255,7 +256,12 @@ int32 SArtboardPanel::PaintBackground(const FGeometry& AllottedGeometry, const F
 		BackgroundBrush.Get().TintColor.GetSpecifiedColor()
 	);
 
-	// draw artboard frame
+	return LayerId;
+}
+
+int32 SArtboardPanel::PaintBorder(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements,
+                                  int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
+{
 	if (bShowArtboardBorder.Get())
 	{
 		constexpr FLinearColor BorderColor = FLinearColor(1.f, 1.f, 1.f, 0.2f);
@@ -269,6 +275,7 @@ int32 SArtboardPanel::PaintBackground(const FGeometry& AllottedGeometry, const F
 		};
 		constexpr float BorderThickness = 1.f;
 
+		++LayerId;
 		FSlateDrawElement::MakeLines(
 			OutDrawElements,
 			LayerId,
