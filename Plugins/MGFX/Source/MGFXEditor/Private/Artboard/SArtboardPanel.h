@@ -87,9 +87,10 @@ public:
 	/** Return the slot of a child widget. */
 	SArtboardPanel::FSlot* GetWidgetSlot(const TSharedPtr<SWidget>& Widget);
 
+	virtual FChildren* GetChildren() override;
 	virtual void OnArrangeChildren(const FGeometry& AllottedGeometry, FArrangedChildren& ArrangedChildren) const override;
 	virtual FVector2D ComputeDesiredSize(float LayoutScaleMultiplier) const override;
-	virtual FChildren* GetChildren() override;
+	virtual FCursorReply OnCursorQuery(const FGeometry& MyGeometry, const FPointerEvent& CursorEvent) const override;
 	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect,
 	                      FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
 	virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
@@ -97,9 +98,13 @@ public:
 	virtual FReply OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 	virtual FReply OnMouseWheel(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 
+
 	virtual int32 PaintBackground(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect,
 	                              FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const;
+	virtual int32 PaintSoftwareCursor(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect,
+	                                  FSlateWindowElementList& OutDrawElements, int32 LayerId) const;
 
+	virtual bool ShouldShowSoftwareCursor() const;
 
 	FVector2D GetViewOffset() const { return ViewOffset; }
 
@@ -151,6 +156,9 @@ protected:
 
 	/** Local position in the panel where the zoom operation began and zoom in/out towards. */
 	FVector2D ZoomFocalPosition;
+
+	/** The local position at which to draw the software cursor. */
+	FVector2D SoftwareCursorPosition;
 
 	/** The size of the artboard. */
 	TAttribute<FVector2D> ArtboardSize;

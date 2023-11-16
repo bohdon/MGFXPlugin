@@ -98,6 +98,11 @@ SArtboardPanel::FSlot* SArtboardPanel::GetWidgetSlot(const TSharedPtr<SWidget>& 
 	return nullptr;
 }
 
+FChildren* SArtboardPanel::GetChildren()
+{
+	return &Children;
+}
+
 void SArtboardPanel::OnArrangeChildren(const FGeometry& AllottedGeometry, FArrangedChildren& ArrangedChildren) const
 {
 	for (int32 Idx = 0; Idx < Children.Num(); ++Idx)
@@ -113,9 +118,10 @@ FVector2D SArtboardPanel::ComputeDesiredSize(float LayoutScaleMultiplier) const
 	return FVector2D(100.f, 100.f);
 }
 
-FChildren* SArtboardPanel::GetChildren()
+FCursorReply SArtboardPanel::OnCursorQuery(const FGeometry& MyGeometry, const FPointerEvent& CursorEvent) const
 {
-	return &Children;
+	// use software cursor when panning and zooming
+	return ShouldShowSoftwareCursor() ? FCursorReply::Cursor(EMouseCursor::None) : FCursorReply::Cursor(EMouseCursor::Default);
 }
 
 int32 SArtboardPanel::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect,
@@ -123,7 +129,10 @@ int32 SArtboardPanel::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedG
 {
 	LayerId = PaintBackground(AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
 
+	++LayerId;
 	LayerId = SPanel::OnPaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
+
+	LayerId = PaintSoftwareCursor(AllottedGeometry, MyCullingRect, OutDrawElements, LayerId);
 
 	return LayerId;
 }
@@ -169,6 +178,8 @@ FReply SArtboardPanel::OnMouseMove(const FGeometry& MyGeometry, const FPointerEv
 	{
 		return FReply::Unhandled();
 	}
+
+	SoftwareCursorPosition = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
 
 	const bool bIsRMBDown = MouseEvent.IsMouseButtonDown(EKeys::RightMouseButton);
 	const bool bIsLMBDown = MouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton);
@@ -272,6 +283,39 @@ int32 SArtboardPanel::PaintBackground(const FGeometry& AllottedGeometry, const F
 
 	return LayerId;
 }
+
+int32 SArtboardPanel::PaintSoftwareCursor(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect,
+                                          FSlateWindowElementList& OutDrawElements, int32 LayerId) const
+{
+	if (!ShouldShowSoftwareCursor())
+	{
+		return LayerId;
+	}
+
+	// Get appropriate software cursor, depending on whether we're panning or zooming
+	const FSlateBrush* Brush = FAppStyle::GetBrush(bIsPanning ? TEXT("SoftwareCursor_Grab") : TEXT("SoftwareCursor_UpDown"));
+
+	++LayerId;
+	FSlateDrawElement::MakeBox(
+		OutDrawElements,
+		LayerId,
+		AllottedGeometry.ToPaintGeometry(
+			Brush->ImageSize,
+			FSlateLayoutTransform(
+				SoftwareCursorPosition - (Brush->ImageSize / 2)
+			)
+		),
+		Brush
+	);
+
+	return LayerId;
+}
+
+bool SArtboardPanel::ShouldShowSoftwareCursor() const
+{
+	return bIsPanning || bIsZooming;
+}
+
 
 void SArtboardPanel::SetViewOffset(FVector2D NewViewOffset, const FGeometry& AllottedGeometry)
 {
