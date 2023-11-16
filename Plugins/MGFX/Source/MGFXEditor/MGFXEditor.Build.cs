@@ -10,6 +10,7 @@ public class MGFXEditor : ModuleRules
 		{
 			"AssetDefinition",
 			"Core",
+			"InputCore",
 			"MGFX",
 			"MaterialEditor",
 			"UnrealEd",

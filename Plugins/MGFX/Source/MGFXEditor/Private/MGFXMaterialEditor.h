@@ -40,6 +40,12 @@ private:
 	/** The original MGFX material asset being edited. */
 	TObjectPtr<UMGFXMaterial> OriginalMGFXMaterial;
 
+	/** The preview image displaying the material on the canvas. */
+	TSharedPtr<SImage> PreviewImage;
+
+	/** The slate brush displaying the preview image. */
+	FSlateBrush PreviewImageBrush;
+
 	void BindCommands();
 	void ExtendToolbar();
 
@@ -98,6 +104,9 @@ private:
 	 */
 	UMaterialExpression* Generate_ShapeStroke(FMGFXMaterialBuilder& Builder, FVector2D& NodePos, const UMGFXMaterialShapeStroke* Stroke,
 	                                          UMaterialExpression* ShapeExp, const FString& ParamPrefix, const FName& ParamGroup);
+
+	/** Apply pending changes in a material editor to the original material. */
+	void ApplyMaterial(IMaterialEditor* MaterialEditor);
 
 public:
 	static const FName DetailsTabId;

@@ -4,10 +4,12 @@
 #include "MGFXMaterialEditor.h"
 
 #include "IMaterialEditor.h"
+#include "MaterialEditorActions.h"
 #include "MGFXEditorModule.h"
 #include "MGFXMaterial.h"
 #include "MGFXMaterialEditorCommands.h"
 #include "MGFXPropertyMacros.h"
+#include "Artboard/SArtboardPanel.h"
 #include "MaterialGraph/MaterialGraph.h"
 #include "Materials/MaterialExpressionAppendVector.h"
 #include "Materials/MaterialExpressionComponentMask.h"
@@ -109,13 +111,18 @@ void FMGFXMaterialEditor::RegisterTabSpawners(const TSharedRef<FTabManager>& InT
 	IMGFXMaterialEditor::RegisterTabSpawners(InTabManager);
 
 	WorkspaceMenuCategory = InTabManager->AddLocalWorkspaceMenuCategory(LOCTEXT("WorkspaceMenu_MGFXMaterialEditor", "MGFX Material Editor"));
+	const TSharedRef<FWorkspaceItem> WorkspaceMenuCategoryRef = WorkspaceMenuCategory.ToSharedRef();
 
 	InTabManager->RegisterTabSpawner(CanvasTabId, FOnSpawnTab::CreateSP(this, &FMGFXMaterialEditor::SpawnTab_Canvas))
-	            .SetDisplayName(LOCTEXT("CanvasTabTitle", "Canvas"));
+	            .SetDisplayName(LOCTEXT("CanvasTabTitle", "Canvas"))
+	            .SetGroup(WorkspaceMenuCategoryRef)
+	            .SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Viewports"));
 
 
 	InTabManager->RegisterTabSpawner(DetailsTabId, FOnSpawnTab::CreateSP(this, &FMGFXMaterialEditor::SpawnTab_Details))
-	            .SetDisplayName(LOCTEXT("DetailsTabTitle", "Details"));
+	            .SetDisplayName(LOCTEXT("DetailsTabTitle", "Details"))
+	            .SetGroup(WorkspaceMenuCategoryRef)
+	            .SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"));
 }
 
 UMaterial* FMGFXMaterialEditor::GetGeneratedMaterial() const
@@ -168,6 +175,8 @@ void FMGFXMaterialEditor::RegenerateMaterial()
 
 	MaterialGraph->LinkGraphNodesFromMaterial();
 	MaterialEditor->UpdateMaterialAfterGraphChange();
+
+	ApplyMaterial(MaterialEditor);
 }
 
 
@@ -208,9 +217,28 @@ void FMGFXMaterialEditor::ExtendToolbar()
 
 TSharedRef<SDockTab> FMGFXMaterialEditor::SpawnTab_Canvas(const FSpawnTabArgs& Args)
 {
+	check(OriginalMGFXMaterial);
+
+	// TODO: ensure a generated material is assigned? or update it on change
+	PreviewImageBrush.SetResourceObject(OriginalMGFXMaterial->GeneratedMaterial);
+
 	return SNew(SDockTab)
 	[
-		SNew(SVerticalBox)
+		SNew(SOverlay)
+		+ SOverlay::Slot()
+		.Padding(4.f)
+		[
+			SNew(SArtboardPanel)
+			.ArtboardSize(OriginalMGFXMaterial->BaseCanvasSize)
+			.Clipping(EWidgetClipping::ClipToBounds)
+			+ SArtboardPanel::Slot()
+			  .Position(FVector2D::ZeroVector)
+			  .Size(OriginalMGFXMaterial->BaseCanvasSize)
+			[
+				SAssignNew(PreviewImage, SImage)
+				.Image(&PreviewImageBrush)
+			]
+		]
 	];
 }
 
@@ -711,6 +739,16 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_ShapeStroke(FMGFXMaterialBuil
 
 	// RGB is not premultiplied, Alpha is
 	return AppendExp;
+}
+
+void FMGFXMaterialEditor::ApplyMaterial(IMaterialEditor* MaterialEditor)
+{
+	const TSharedRef<FUICommandList> MaterialEditorCommands = MaterialEditor->GetToolkitCommands();
+	const FUIAction* ApplyAction = MaterialEditorCommands->GetActionForCommand(FMaterialEditorCommands::Get().Apply);
+	if (ApplyAction)
+	{
+		ApplyAction->Execute();
+	}
 }
 
 
