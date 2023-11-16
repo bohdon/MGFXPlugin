@@ -437,9 +437,8 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_Layer(FMGFXMaterialBuilder& B
 		}
 	}
 
-	// TODO: pass parent uvs to children
-	// generate children layers
-	for (int32 Idx = 0; Idx < Layer->Children.Num(); ++Idx)
+	// generate children layers, bottom to top, so that merges can be performed in order
+	for (int32 Idx = Layer->Children.Num() - 1; Idx >= 0; --Idx)
 	{
 		const UMGFXMaterialLayer* ChildLayer = Layer->Children[Idx];
 		UMaterialExpressionNamedRerouteDeclaration* UVsDeclaration = Cast<UMaterialExpressionNamedRerouteDeclaration>(UVsExp);
