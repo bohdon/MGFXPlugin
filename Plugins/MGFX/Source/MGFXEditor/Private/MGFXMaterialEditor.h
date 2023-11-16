@@ -57,9 +57,6 @@ private:
 	/** Leftmost position where nodes for each layer should be aligned in the generated material. */
 	float NodePosBaselineLeft;
 
-	/** Reroute color to use for UVs. */
-	FLinearColor UVRerouteColor;
-
 	/** Reroute color to use for SDF shapes. */
 	FLinearColor SDFRerouteColor;
 
@@ -85,7 +82,8 @@ private:
 	void Generate_Layers(FMGFXMaterialBuilder& Builder);
 
 	/** Generate a layer and all it's children recursively. */
-	UMaterialExpression* Generate_Layer(FMGFXMaterialBuilder& Builder, FVector2D& NodePos, const UMGFXMaterialLayer* Layer, UMaterialExpression* OutputExp);
+	UMaterialExpression* Generate_Layer(FMGFXMaterialBuilder& Builder, FVector2D& NodePos, const UMGFXMaterialLayer* Layer,
+	                                    UMaterialExpressionNamedRerouteDeclaration* InputUVsReroute, UMaterialExpression* OutputExp);
 
 	/** Generate material nodes to apply a 2D transform. */
 	UMaterialExpression* Generate_TransformUVs(FMGFXMaterialBuilder& Builder, FVector2D& NodePos,

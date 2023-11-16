@@ -65,6 +65,9 @@ struct MGFXEDITOR_API FMGFXMaterialBuilder
 
 	UMaterialExpressionNamedRerouteDeclaration* CreateNamedReroute(const FVector2D& NodePos, FName Name, FLinearColor Color) const;
 
+	/** Create a usage of an existing named reroute. */
+	UMaterialExpressionNamedRerouteUsage* CreateNamedRerouteUsage(const FVector2D& NodePos, UMaterialExpressionNamedRerouteDeclaration* Declaration) const;
+
 	/** Find and create a usage of an existing named reroute. */
 	UMaterialExpressionNamedRerouteUsage* CreateNamedRerouteUsage(const FVector2D& NodePos, const FName Name) const;
 

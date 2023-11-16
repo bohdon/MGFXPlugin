@@ -79,6 +79,17 @@ UMaterialExpressionNamedRerouteDeclaration* FMGFXMaterialBuilder::CreateNamedRer
 	return RerouteExp;
 }
 
+UMaterialExpressionNamedRerouteUsage* FMGFXMaterialBuilder::CreateNamedRerouteUsage(const FVector2D& NodePos,
+                                                                                    UMaterialExpressionNamedRerouteDeclaration* Declaration) const
+{
+	UMaterialExpressionNamedRerouteUsage* UsageExp = Create<UMaterialExpressionNamedRerouteUsage>(NodePos);
+	UsageExp->Declaration = Declaration;
+	UsageExp->DeclarationGuid = Declaration->VariableGuid;
+	// SET_PROP(UsageExp, Declaration, Declaration);
+	// SET_PROP(UsageExp, DeclarationGuid, Declaration->VariableGuid);
+	return UsageExp;
+}
+
 UMaterialExpressionNamedRerouteUsage* FMGFXMaterialBuilder::CreateNamedRerouteUsage(const FVector2D& NodePos, const FName Name) const
 {
 	const TObjectPtr<UMaterialExpressionNamedRerouteDeclaration> Declaration = FindNamedReroute(Name);
@@ -87,13 +98,7 @@ UMaterialExpressionNamedRerouteUsage* FMGFXMaterialBuilder::CreateNamedRerouteUs
 		UE_LOG(LogMGFXEditor, Error, TEXT("Named reroute not found: %s"), *Name.ToString());
 		return nullptr;
 	}
-
-	UMaterialExpressionNamedRerouteUsage* UsageExp = Create<UMaterialExpressionNamedRerouteUsage>(NodePos);
-	UsageExp->Declaration = Declaration;
-	UsageExp->DeclarationGuid = Declaration->VariableGuid;
-	// SET_PROP(UsageExp, Declaration, Declaration);
-	// SET_PROP(UsageExp, DeclarationGuid, Declaration->VariableGuid);
-	return UsageExp;
+	return CreateNamedRerouteUsage(NodePos, Declaration);
 }
 
 UMaterialExpressionNamedRerouteDeclaration* FMGFXMaterialBuilder::FindNamedReroute(const FName Name) const
