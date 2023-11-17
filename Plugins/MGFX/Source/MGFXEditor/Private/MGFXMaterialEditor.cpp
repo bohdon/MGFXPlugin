@@ -9,6 +9,7 @@
 #include "MGFXMaterial.h"
 #include "MGFXMaterialEditorCommands.h"
 #include "MGFXPropertyMacros.h"
+#include "ObjectEditorUtils.h"
 #include "SMGFXMaterialEditorCanvas.h"
 #include "SMGFXMaterialEditorLayers.h"
 #include "MaterialGraph/MaterialGraph.h"
@@ -60,6 +61,17 @@ void FMGFXMaterialEditor::InitMGFXMaterialEditor(const EToolkitMode::Type Mode,
 
 	FMGFXMaterialEditorCommands::Register();
 	BindCommands();
+
+	// initialize details view
+	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+
+	FDetailsViewArgs DetailsViewArgs;
+	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
+
+	DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
+	DetailsView->SetIsPropertyVisibleDelegate(FIsPropertyVisible::CreateSP(this, &FMGFXMaterialEditor::IsDetailsPropertyVisible));
+	DetailsView->SetIsCustomRowVisibleDelegate(FIsCustomRowVisible::CreateSP(this, &FMGFXMaterialEditor::IsDetailsRowVisible));
+	DetailsView->SetObject(OriginalMGFXMaterial);
 
 	const TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_MGFXMaterialEditor_v0.1")
 		->AddArea(
@@ -206,6 +218,62 @@ FVector2D FMGFXMaterialEditor::GetCanvasSize() const
 	return FVector2D(OriginalMGFXMaterial->BaseCanvasSize);
 }
 
+void FMGFXMaterialEditor::OnLayerSelectionChanged(TObjectPtr<UMGFXMaterialLayer> Layer)
+{
+	check(DetailsView.IsValid());
+
+	if (Layer)
+	{
+		DetailsView->SetObject(Layer);
+	}
+	else
+	{
+		// default to inspecting material when nothing is selected
+		DetailsView->SetObject(OriginalMGFXMaterial);
+	}
+}
+
+bool FMGFXMaterialEditor::IsDetailsPropertyVisible(const FPropertyAndParent& PropertyAndParent)
+{
+	const TArray<FName> CategoriesToHide = {};
+
+	const FProperty* Property = PropertyAndParent.ParentProperties.Num() > 0 ? PropertyAndParent.ParentProperties.Last() : &PropertyAndParent.Property;
+
+	// get the topmost parent's category name if the property has one
+	const FString CategoryString = FObjectEditorUtils::GetCategoryFName(Property).ToString();
+	FString SubcategoryString = CategoryString;
+
+	int32 SubcategoryStart;
+	if (CategoryString.FindChar(TEXT('|'), SubcategoryStart))
+	{
+		SubcategoryString = CategoryString.Left(SubcategoryStart);
+	}
+
+	const bool bIsHiddenCategory = CategoriesToHide.ContainsByPredicate([&CategoryString, &SubcategoryString](const FName& Element)
+	{
+		const FString ElementString = Element.ToString();
+		return CategoryString == ElementString || SubcategoryString == ElementString;
+	});
+
+	if (bIsHiddenCategory)
+	{
+		return false;
+	}
+
+	return true;
+}
+
+bool FMGFXMaterialEditor::IsDetailsRowVisible(FName InRowName, FName InParentName)
+{
+	const TArray<FName> CategoriesToHide = {};
+
+	if (CategoriesToHide.Contains(InParentName))
+	{
+		return false;
+	}
+	return true;
+}
+
 void FMGFXMaterialEditor::BindCommands()
 {
 	const FMGFXMaterialEditorCommands& Commands = FMGFXMaterialEditorCommands::Get();
@@ -256,22 +324,15 @@ TSharedRef<SDockTab> FMGFXMaterialEditor::SpawnTab_Layers(const FSpawnTabArgs& A
 	[
 		SAssignNew(LayersWidget, SMGFXMaterialEditorLayers)
 		.MGFXMaterialEditor(SharedThis(this))
+		.OnSelectionChanged(this, &FMGFXMaterialEditor::OnLayerSelectionChanged)
 	];
 }
 
 TSharedRef<SDockTab> FMGFXMaterialEditor::SpawnTab_Details(const FSpawnTabArgs& Args)
 {
-	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
-
-	FDetailsViewArgs DetailsViewArgs;
-	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
-
-	const TSharedRef<IDetailsView> DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
-	DetailsView->SetObject(OriginalMGFXMaterial);
-
 	return SNew(SDockTab)
 	[
-		DetailsView
+		DetailsView.ToSharedRef()
 	];
 }
 

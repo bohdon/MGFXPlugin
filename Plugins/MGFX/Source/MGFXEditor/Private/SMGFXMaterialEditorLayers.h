@@ -7,6 +7,7 @@
 
 class FMGFXMaterialEditor;
 class SMGFXMaterialEditorLayerTreeView;
+class SMGFXMaterialEditorLayers;
 class UMGFXMaterial;
 class UMGFXMaterialLayer;
 
@@ -24,7 +25,7 @@ public:
 	SLATE_END_ARGS()
 
 	/** Construct function for this widget */
-	void Construct(const FArguments& InArgs, const TSharedRef<SMGFXMaterialEditorLayerTreeView>& InOwningTreeView, UMGFXMaterial* InMaterial);
+	void Construct(const FArguments& InArgs, const TSharedRef<SMGFXMaterialEditorLayerTreeView>& InOwningTreeView);
 	virtual void ConstructChildren(ETableViewMode::Type InOwnerTableMode, const TAttribute<FMargin>& InPadding, const TSharedRef<SWidget>& InContent) override;
 
 	virtual const FSlateBrush* GetBorder() const override;
@@ -36,9 +37,6 @@ public:
 protected:
 	/** The item associated with this row of data */
 	TWeakObjectPtr<UMGFXMaterialLayer> Item;
-
-	/** Weak pointer to the material who's layers are being edited. */
-	TWeakObjectPtr<UMGFXMaterial> Material;
 
 	/** Weak pointer to the owning tree view */
 	TWeakPtr<SMGFXMaterialEditorLayerTreeView> OwningTreeView;
@@ -53,22 +51,12 @@ protected:
 class MGFXEDITOR_API SMGFXMaterialEditorLayerTreeView : public STreeView<TObjectPtr<UMGFXMaterialLayer>>
 {
 public:
-	SLATE_BEGIN_ARGS(SMGFXMaterialEditorLayerTreeView)
-		{
-		}
-
-	SLATE_END_ARGS()
-
-	void Construct(const FArguments& InArgs, UMGFXMaterial* InMaterial);
+	void Construct(const FArguments& InArgs, TSharedRef<SMGFXMaterialEditorLayers> InOwningLayers);
 
 	TSharedRef<ITableRow> MakeTableRowWidget(TObjectPtr<UMGFXMaterialLayer> InItem, const TSharedRef<STableViewBase>& OwnerTable);
 	void HandleGetChildrenForTree(TObjectPtr<UMGFXMaterialLayer> InItem, TArray<TObjectPtr<UMGFXMaterialLayer>>& OutChildren);
 
-protected:
-	/** Weak pointer to the material who's layers are being edited. */
-	TWeakObjectPtr<UMGFXMaterial> Material;
-
-	TArray<TObjectPtr<UMGFXMaterialLayer>> RootElements;
+	void SetExpansionRecursive(TObjectPtr<UMGFXMaterialLayer> InItem, bool bTowardsParent, bool bShouldBeExpanded);
 };
 
 
@@ -78,11 +66,16 @@ protected:
 class MGFXEDITOR_API SMGFXMaterialEditorLayers : public SCompoundWidget
 {
 public:
+	DECLARE_DELEGATE_OneParam(FOnSelectionChanged, TObjectPtr<UMGFXMaterialLayer> /*TreeItem*/);
+
+public:
 	SLATE_BEGIN_ARGS(SMGFXMaterialEditorLayers)
 		{
 		}
 
 		SLATE_ARGUMENT(TWeakPtr<FMGFXMaterialEditor>, MGFXMaterialEditor)
+
+		SLATE_EVENT(FOnSelectionChanged, OnSelectionChanged)
 
 	SLATE_END_ARGS()
 
@@ -94,4 +87,10 @@ public:
 
 protected:
 	TSharedPtr<SMGFXMaterialEditorLayerTreeView> TreeView;
+
+	FOnSelectionChanged OnSelectionChanged;
+
+	TArray<TObjectPtr<UMGFXMaterialLayer>> TreeRootItems;
+
+	void HandleSelectionChanged(TObjectPtr<UMGFXMaterialLayer> TreeItem, ESelectInfo::Type SelectInfo);
 };

@@ -44,7 +44,8 @@ SArtboardPanel::SArtboardPanel()
 	  bIsZooming(false),
 	  ZoomSensitivity(0.001f),
 	  ZoomWheelSensitivity(0.1f),
-	  Children(this, GET_MEMBER_NAME_CHECKED(SArtboardPanel, Children))
+	  Children(this, GET_MEMBER_NAME_CHECKED(SArtboardPanel, Children)),
+	  bIsViewOffsetInitialized(false)
 {
 }
 
@@ -244,6 +245,18 @@ FReply SArtboardPanel::OnMouseWheel(const FGeometry& MyGeometry, const FPointerE
 	return FReply::Handled();
 }
 
+void SArtboardPanel::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
+{
+	SPanel::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
+
+	if (!bIsViewOffsetInitialized)
+	{
+		bIsViewOffsetInitialized = true;
+
+		CenterView(AllottedGeometry);
+	}
+}
+
 int32 SArtboardPanel::PaintBackground(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements,
                                       int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
 {
@@ -340,6 +353,12 @@ void SArtboardPanel::SetViewOffset(FVector2D NewViewOffset, const FGeometry& All
 
 		OnViewOffsetChanged();
 	}
+}
+
+void SArtboardPanel::CenterView(const FGeometry& AllottedGeometry)
+{
+	const FVector2D NewViewOffset = -AllottedGeometry.GetLocalSize() * 0.5f + (ArtboardSize.Get() * 0.5f);
+	SetViewOffset(NewViewOffset, AllottedGeometry);
 }
 
 void SArtboardPanel::SetZoomAmount(float NewZoomAmount)

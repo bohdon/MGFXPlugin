@@ -97,6 +97,7 @@ public:
 	virtual FReply OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 	virtual FReply OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 	virtual FReply OnMouseWheel(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
+	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 
 
 	virtual int32 PaintBackground(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect,
@@ -111,6 +112,9 @@ public:
 	FVector2D GetViewOffset() const { return ViewOffset; }
 
 	void SetViewOffset(FVector2D NewViewOffset, const FGeometry& AllottedGeometry);
+
+	/** Recenter the artboard in the current view. */
+	void CenterView(const FGeometry& AllottedGeometry);
 
 	float GetZoomAmount() const { return ZoomAmount; }
 
@@ -180,6 +184,8 @@ protected:
 	TAttribute<FSlateBrush> BackgroundBrush;
 
 	TAttribute<bool> bShowArtboardBorder;
+
+	bool bIsViewOffsetInitialized;
 
 	virtual void OnViewOffsetChanged();
 

@@ -44,6 +44,7 @@ class MGFXEDITOR_API FMGFXMaterialEditor : public IMGFXMaterialEditor
 public:
 	FMGFXMaterialEditor();
 
+
 	/** Initialize the editor for a material. */
 	void InitMGFXMaterialEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, UMGFXMaterial* InMGFXMaterial);
 
@@ -66,10 +67,18 @@ public:
 
 	FVector2D GetCanvasSize() const;
 
+	void OnLayerSelectionChanged(TObjectPtr<UMGFXMaterialLayer> Layer);
+
+	bool IsDetailsPropertyVisible(const FPropertyAndParent& PropertyAndParent);
+
+	bool IsDetailsRowVisible(FName InRowName, FName InParentName);
+
 private:
 	TSharedPtr<SMGFXMaterialEditorCanvas> MGFXMaterialEditorCanvas;
 
 	TSharedPtr<SMGFXMaterialEditorLayers> LayersWidget;
+
+	TSharedPtr<IDetailsView> DetailsView;
 
 	/** The original MGFX material asset being edited. */
 	TObjectPtr<UMGFXMaterial> OriginalMGFXMaterial;
