@@ -43,4 +43,30 @@ public:
 
 	UPROPERTY(EditAnywhere, Instanced, Meta = (TitleProperty = "Name"), Category = "Children")
 	TArray<TObjectPtr<UMGFXMaterialLayer>> Children;
+
+	/** Return the accumulated transform of this layer. */
+	FTransform2D GetTransform() const;
+
+	/** Return the accumulated transform of the parent layer. */
+	FTransform2D GetParentTransform() const;
+
+	/** Return true if this layer has a shape with finite bounds. */
+	bool HasBounds() const;
+
+	/** Return the local bounds of this layer's shape. */
+	FBox2D GetBounds() const;
+
+	/** Add a new child layer. */
+	void AddChild(UMGFXMaterialLayer* Child);
+
+	UMGFXMaterialLayer* GetParent() const { return Parent; }
+
+	void SetParent(UMGFXMaterialLayer* NewParent);
+
+	virtual void PostLoad() override;
+
+protected:
+	/** The parent layer, if any. */
+	UPROPERTY()
+	TObjectPtr<UMGFXMaterialLayer> Parent;
 };

@@ -62,12 +62,16 @@ public:
 	};
 
 	SLATE_BEGIN_ARGS(SArtboardPanel)
+			: _ZoomAmountMin(0.1f),
+			  _ZoomAmountMax(10.f)
 		{
 		}
 
 		SLATE_ATTRIBUTE(FVector2D, ArtboardSize)
 		SLATE_ATTRIBUTE(FSlateBrush, BackgroundBrush)
 		SLATE_ATTRIBUTE(bool, bShowArtboardBorder)
+		SLATE_ARGUMENT(float, ZoomAmountMin)
+		SLATE_ARGUMENT(float, ZoomAmountMax)
 		SLATE_SLOT_ARGUMENT(FSlot, Slots)
 
 	SLATE_END_ARGS()
@@ -122,9 +126,13 @@ public:
 
 	void ApplyZoomDelta(float ZoomDelta, const FVector2D& LocalFocalPosition, const FGeometry& AllottedGeometry);
 
+	FVector2D PanelCoordToGraphCoord(const FVector2D& PanelPosition) const;
+
 	FVector2D GraphCoordToPanelCoord(const FVector2D& GraphPosition) const;
 
-	FVector2D PanelCoordToGraphCoord(const FVector2D& PanelPosition) const;
+	FTransform2D GetPanelToGraphTransform() const;
+
+	FTransform2D GetGraphToPanelTransform() const;
 
 	FVector2D GetArtboardSize() const
 	{

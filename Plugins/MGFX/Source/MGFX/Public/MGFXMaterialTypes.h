@@ -49,7 +49,7 @@ enum class EMGFXLayerMergeOperation : uint8
 
 
 USTRUCT(BlueprintType)
-struct FMGFXShapeTransform2D
+struct MGFX_API FMGFXShapeTransform2D
 {
 	GENERATED_BODY()
 
@@ -60,9 +60,12 @@ struct FMGFXShapeTransform2D
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FVector2f Location = FVector2f(0.f, 0.f);
 
+	/** The rotation of the shape in degrees. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float Rotation = 0.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FVector2f Scale = FVector2f(1, 1);
+
+	FTransform2D ToTransform2D() const;
 };

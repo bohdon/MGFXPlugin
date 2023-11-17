@@ -15,6 +15,12 @@ UMGFXMaterialShape_Circle::UMGFXMaterialShape_Circle()
 	Visuals.Add(CreateDefaultSubobject<UMGFXMaterialShapeFill>(TEXT("DefaultFill")));
 }
 
+FBox2D UMGFXMaterialShape_Circle::GetBounds() const
+{
+	const FVector2D HalfSize(Size * 0.5f);
+	return FBox2D(-HalfSize, HalfSize);
+}
+
 #if WITH_EDITORONLY_DATA
 TArray<FMGFXMaterialShapeInput> UMGFXMaterialShape_Circle::GetInputs() const
 {

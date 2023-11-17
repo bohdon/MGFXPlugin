@@ -8,6 +8,7 @@
 #include "MGFXEditorModule.h"
 #include "MGFXMaterial.h"
 #include "MGFXMaterialEditorCommands.h"
+#include "MGFXMaterialLayer.h"
 #include "MGFXPropertyMacros.h"
 #include "ObjectEditorUtils.h"
 #include "SMGFXMaterialEditorCanvas.h"
@@ -218,18 +219,42 @@ FVector2D FMGFXMaterialEditor::GetCanvasSize() const
 	return FVector2D(OriginalMGFXMaterial->BaseCanvasSize);
 }
 
-void FMGFXMaterialEditor::OnLayerSelectionChanged(TObjectPtr<UMGFXMaterialLayer> Layer)
+TArray<UMGFXMaterialLayer*> FMGFXMaterialEditor::GetSelectedLayers() const
+{
+	return SelectedLayers;
+}
+
+void FMGFXMaterialEditor::SetSelectedLayers(const TArray<UMGFXMaterialLayer*>& Layers)
+{
+	SelectedLayers = Layers;
+
+	if (SelectedLayers.Num() == 1)
+	{
+		DetailsView->SetObject(SelectedLayers[0]);
+	}
+	else
+	{
+		// default to inspecting material when nothing or multiple things are selected
+		DetailsView->SetObject(OriginalMGFXMaterial);
+	}
+}
+
+void FMGFXMaterialEditor::ClearSelectedLayers()
+{
+	SetSelectedLayers(TArray<UMGFXMaterialLayer*>());
+}
+
+void FMGFXMaterialEditor::OnLayerSelectionChanged(UMGFXMaterialLayer* Layer)
 {
 	check(DetailsView.IsValid());
 
 	if (Layer)
 	{
-		DetailsView->SetObject(Layer);
+		SetSelectedLayers({Layer});
 	}
 	else
 	{
-		// default to inspecting material when nothing is selected
-		DetailsView->SetObject(OriginalMGFXMaterial);
+		ClearSelectedLayers();
 	}
 }
 

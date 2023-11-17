@@ -54,6 +54,8 @@ void SArtboardPanel::Construct(const FArguments& InArgs)
 	ArtboardSize = InArgs._ArtboardSize;
 	BackgroundBrush = InArgs._BackgroundBrush;
 	bShowArtboardBorder = InArgs._bShowArtboardBorder;
+	ZoomAmountMin = InArgs._ZoomAmountMin;
+	ZoomAmountMax = InArgs._ZoomAmountMax;
 
 	if (!(BackgroundBrush.IsSet() || BackgroundBrush.IsBound()))
 	{
@@ -385,14 +387,24 @@ void SArtboardPanel::ApplyZoomDelta(float ZoomDelta, const FVector2D& LocalFocal
 	SetViewOffset(NewViewOffset, AllottedGeometry);
 }
 
+FVector2D SArtboardPanel::PanelCoordToGraphCoord(const FVector2D& PanelPosition) const
+{
+	return PanelPosition / GetZoomAmount() + GetViewOffset();
+}
+
 FVector2D SArtboardPanel::GraphCoordToPanelCoord(const FVector2D& GraphPosition) const
 {
 	return (GraphPosition - GetViewOffset()) * GetZoomAmount();
 }
 
-FVector2D SArtboardPanel::PanelCoordToGraphCoord(const FVector2D& PanelPosition) const
+FTransform2D SArtboardPanel::GetPanelToGraphTransform() const
 {
-	return PanelPosition / GetZoomAmount() + GetViewOffset();
+	return FTransform2D(ZoomAmount, -ViewOffset * ZoomAmount);
+}
+
+FTransform2D SArtboardPanel::GetGraphToPanelTransform() const
+{
+	return GetPanelToGraphTransform().Inverse();
 }
 
 void SArtboardPanel::OnViewOffsetChanged()

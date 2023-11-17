@@ -24,6 +24,10 @@ FMGFXMaterialShapeInput FMGFXMaterialShapeInput::Vector4(const FString& InName, 
 	return FMGFXMaterialShapeInput(InName, EMGFXMaterialShapeInputType::Vector4, FLinearColor(InValue.X, InValue.Y, InValue.Z, InValue.W));
 }
 
+FBox2D UMGFXMaterialShape::GetBounds() const
+{
+	return FBox2D(ForceInit);
+}
 
 #if WITH_EDITORONLY_DATA
 UMaterialFunctionInterface* UMGFXMaterialShape::GetMaterialFunction() const

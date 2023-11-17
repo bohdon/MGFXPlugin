@@ -23,6 +23,8 @@ public:
 	float Size = 100.f;
 
 	virtual FString GetShapeName() const override { return TEXT("Circle"); }
+	virtual bool HasBounds() const override { return true; }
+	virtual FBox2D GetBounds() const override;
 
 #if WITH_EDITORONLY_DATA
 	virtual TArray<FMGFXMaterialShapeInput> GetInputs() const override;

@@ -13,10 +13,10 @@ BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 void SMGFXMaterialEditorCanvas::Construct(const FArguments& InArgs)
 {
-	MGFXMaterialEditorPtr = InArgs._MGFXMaterialEditor;
-	check(MGFXMaterialEditorPtr.IsValid());
+	MGFXMaterialEditor = InArgs._MGFXMaterialEditor;
+	check(MGFXMaterialEditor.IsValid());
 
-	PreviewImageBrush.SetResourceObject(MGFXMaterialEditorPtr.Pin()->GetGeneratedMaterial());
+	PreviewImageBrush.SetResourceObject(MGFXMaterialEditor.Pin()->GetGeneratedMaterial());
 
 	ChildSlot
 	[
@@ -28,6 +28,7 @@ void SMGFXMaterialEditorCanvas::Construct(const FArguments& InArgs)
 			.ArtboardSize(this, &SMGFXMaterialEditorCanvas::GetArtboardSize)
 			.BackgroundBrush(FSlateColorBrush(FLinearColor(0.002f, 0.002f, 0.002f)))
 			.bShowArtboardBorder(this, &SMGFXMaterialEditorCanvas::ShouldShowArtboardBorder)
+			.ZoomAmountMax(100.f)
 			.Clipping(EWidgetClipping::ClipToBounds)
 
 			// add preview material image, full size of the artboard
@@ -44,7 +45,7 @@ void SMGFXMaterialEditorCanvas::Construct(const FArguments& InArgs)
 
 FVector2D SMGFXMaterialEditorCanvas::GetArtboardSize() const
 {
-	return MGFXMaterialEditorPtr.IsValid() ? MGFXMaterialEditorPtr.Pin()->GetCanvasSize() : FVector2D(512, 512);
+	return MGFXMaterialEditor.IsValid() ? MGFXMaterialEditor.Pin()->GetCanvasSize() : FVector2D(512, 512);
 }
 
 bool SMGFXMaterialEditorCanvas::ShouldShowArtboardBorder() const
@@ -66,7 +67,73 @@ void SMGFXMaterialEditorCanvas::UpdateArtboardSize()
 
 UMGFXMaterial* SMGFXMaterialEditorCanvas::GetMGFXMaterial() const
 {
-	return MGFXMaterialEditorPtr.Pin()->GetOriginalMGFXMaterial();
+	return MGFXMaterialEditor.Pin()->GetOriginalMGFXMaterial();
+}
+
+int32 SMGFXMaterialEditorCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect,
+                                         FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
+{
+	LayerId = SCompoundWidget::OnPaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
+
+	++LayerId;
+	LayerId = PaintSelectionOutline(ArtboardPanel->GetPaintSpaceGeometry(), MyCullingRect, OutDrawElements, LayerId);
+
+	return LayerId;
+}
+
+int32 SMGFXMaterialEditorCanvas::PaintSelectionOutline(const FGeometry& AllottedGeometry, FSlateRect MyCullingRect,
+                                                       FSlateWindowElementList& OutDrawElements, int32 LayerId) const
+{
+	TArray<UMGFXMaterialLayer*> SelectedLayers = MGFXMaterialEditor.Pin()->GetSelectedLayers();
+
+	const FLinearColor OutlineColor = FStyleColors::Select.GetSpecifiedColor();
+	constexpr float OutlineWidth = 2.f;
+
+	for (const UMGFXMaterialLayer* SelectedLayer : SelectedLayers)
+	{
+		if (!SelectedLayer->HasBounds())
+		{
+			// no bounds to represent
+			continue;
+		}
+
+		// layer transform and shape bounds
+		const FTransform2D LayerTransform = SelectedLayer->GetTransform();
+		const FBox2D LayerBounds = SelectedLayer->GetBounds();
+
+		// apply artboard pan/zoom transform
+		const FTransform2D ArtboardTransform = ArtboardPanel->GetPanelToGraphTransform();
+		FGeometry LayerGeometry = AllottedGeometry
+		                          .MakeChild(ArtboardTransform, FVector2f::ZeroVector)
+		                          .MakeChild(LayerTransform, FVector2f::ZeroVector)
+		                          .MakeChild(LayerBounds.GetSize(), FSlateLayoutTransform(LayerBounds.Min));
+
+		// convert to paint geometry, and inflate by outline size
+		const FVector2D LayerScaleVector = FVector2D(LayerGeometry.GetAccumulatedRenderTransform().GetMatrix().GetScale().GetVector());
+		const FVector2D OutlinePixelSize = FVector2D(OutlineWidth, OutlineWidth) / LayerScaleVector;
+		FPaintGeometry SelectionGeometry = LayerGeometry.ToInflatedPaintGeometry(OutlinePixelSize);
+
+		FSlateClippingZone SelectionZone(SelectionGeometry);
+		const TArray<FVector2D> Points = {
+			FVector2D(SelectionZone.TopLeft),
+			FVector2D(SelectionZone.TopRight),
+			FVector2D(SelectionZone.BottomRight),
+			FVector2D(SelectionZone.BottomLeft),
+			FVector2D(SelectionZone.TopLeft),
+		};
+
+		FSlateDrawElement::MakeLines(
+			OutDrawElements,
+			LayerId,
+			FPaintGeometry(),
+			Points,
+			ESlateDrawEffect::None,
+			OutlineColor,
+			true,
+			OutlineWidth);
+	}
+
+	return LayerId;
 }
 
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION

@@ -67,7 +67,13 @@ public:
 
 	FVector2D GetCanvasSize() const;
 
-	void OnLayerSelectionChanged(TObjectPtr<UMGFXMaterialLayer> Layer);
+	TArray<UMGFXMaterialLayer*> GetSelectedLayers() const;
+
+	void SetSelectedLayers(const TArray<UMGFXMaterialLayer*>& Layers);
+
+	void ClearSelectedLayers();
+
+	void OnLayerSelectionChanged(UMGFXMaterialLayer* Layer);
 
 	bool IsDetailsPropertyVisible(const FPropertyAndParent& PropertyAndParent);
 
@@ -82,6 +88,9 @@ private:
 
 	/** The original MGFX material asset being edited. */
 	TObjectPtr<UMGFXMaterial> OriginalMGFXMaterial;
+
+	/** The currently selected layers. */
+	TArray<UMGFXMaterialLayer*> SelectedLayers;
 
 	/** Leftmost position where nodes for each layer should be aligned in the generated material. */
 	float NodePosBaselineLeft;

@@ -31,7 +31,7 @@ void UMGFXMaterial::PostLoad()
 			NewLayer->Name = Layer.Name;
 			NewLayer->Transform = Layer.Transform;
 			NewLayer->Shape = Layer.Shape;
-			RootLayer->Children.Add(NewLayer);
+			RootLayer->AddChild(NewLayer);
 		}
 
 		Layers.Empty();

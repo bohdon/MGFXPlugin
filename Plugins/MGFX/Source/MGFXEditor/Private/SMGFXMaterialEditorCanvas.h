@@ -38,10 +38,16 @@ public:
 	void UpdateArtboardSize();
 
 	/** Weak pointer to the owning material editor. */
-	TWeakPtr<FMGFXMaterialEditor> MGFXMaterialEditorPtr;
+	TWeakPtr<FMGFXMaterialEditor> MGFXMaterialEditor;
 
 	/** Return the original MGFXMaterial being edited. This should never be null. */
 	UMGFXMaterial* GetMGFXMaterial() const;
+
+	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements,
+	                      int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
+
+	int32 PaintSelectionOutline(const FGeometry& AllottedGeometry, FSlateRect MyCullingRect,
+	                            FSlateWindowElementList& OutDrawElements, int32 LayerId) const;
 
 protected:
 	TSharedPtr<SArtboardPanel> ArtboardPanel;

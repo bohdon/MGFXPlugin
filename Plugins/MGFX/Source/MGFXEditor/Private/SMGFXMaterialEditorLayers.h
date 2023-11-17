@@ -66,7 +66,7 @@ public:
 class MGFXEDITOR_API SMGFXMaterialEditorLayers : public SCompoundWidget
 {
 public:
-	DECLARE_DELEGATE_OneParam(FOnSelectionChanged, TObjectPtr<UMGFXMaterialLayer> /*TreeItem*/);
+	DECLARE_DELEGATE_OneParam(FOnSelectionChanged, UMGFXMaterialLayer* /*TreeItem*/);
 
 public:
 	SLATE_BEGIN_ARGS(SMGFXMaterialEditorLayers)

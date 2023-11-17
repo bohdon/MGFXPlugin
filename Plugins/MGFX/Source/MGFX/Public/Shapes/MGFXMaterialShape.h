@@ -55,13 +55,20 @@ class MGFX_API UMGFXMaterialShape : public UObject
 public:
 	/** The operation to use when merging this shape with the one below. */
 	UPROPERTY(EditAnywhere, Category = "Shape")
-	TEnumAsByte<EMGFXShapeMergeOperation> ShapeMergeOperation;
+	EMGFXShapeMergeOperation ShapeMergeOperation;
 
 	UPROPERTY(EditAnywhere, Instanced, Category = "Fill / Stroke")
 	TArray<TObjectPtr<UMGFXMaterialShapeVisual>> Visuals;
 
 	/** Return the user-facing name of this shape type. */
 	virtual FString GetShapeName() const PURE_VIRTUAL(, return FString(););
+
+	// TODO: move to SMGFXMaterialShape widgets defined for each shape...
+	/** Return true if the shape has finite bounds. */
+	virtual bool HasBounds() const { return false; }
+
+	/** Return the local bounds of the shape */
+	virtual FBox2D GetBounds() const;
 
 #if WITH_EDITORONLY_DATA
 	/** Return the material function to use. */
