@@ -5,10 +5,10 @@
 #include "CoreMinimal.h"
 #include "Widgets/SCompoundWidget.h"
 
-class UMGFXMaterial;
 class FMGFXMaterialEditor;
 class SArtboardPanel;
 class SImage;
+class UMGFXMaterial;
 
 
 /**

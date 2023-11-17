@@ -18,8 +18,45 @@ FMGFXEditorStyle::FMGFXEditorStyle()
 	SetCoreContentRoot(FPaths::EngineContentDir() / TEXT("Slate"));
 
 #if WITH_EDITOR
+	// MGFXMaterial Editor
 	{
 		Set(TEXT("MGFXMaterialEditor.RegenerateMaterial"), new IMAGE_BRUSH_SVG("Starship/Common/Apply", Icon20x20));
+
+		const FSlateColor SelectionColor = FAppStyle::GetSlateColor("SelectionColor");
+		const FSlateColor SelectorColor = FAppStyle::GetSlateColor("SelectorColor");
+
+		// create a rounded-corner TableView.Row style for material editor layers
+		auto MakeRoundedCorners = [](FSlateBrush& SlateBrush)
+		{
+			SlateBrush.DrawAs = ESlateBrushDrawType::RoundedBox;
+			SlateBrush.OutlineSettings.CornerRadii = FVector4(2.f, 2.f, 2.f, 2.f);
+			SlateBrush.OutlineSettings.RoundingType = ESlateBrushRoundingType::FixedRadius;
+		};
+
+		FTableRowStyle LayerTableViewRowStyle = FTableRowStyle(FAppStyle::GetWidgetStyle<FTableRowStyle>("TableView.Row"));
+
+		LayerTableViewRowStyle
+			.SetEvenRowBackgroundBrush(FSlateColorBrush(FStyleColors::Panel))
+			.SetEvenRowBackgroundHoveredBrush(FSlateColorBrush(FStyleColors::Hover))
+			.SetOddRowBackgroundBrush(FSlateColorBrush(FStyleColors::Panel))
+			.SetOddRowBackgroundHoveredBrush(FSlateColorBrush(FStyleColors::Hover));
+
+		MakeRoundedCorners(LayerTableViewRowStyle.ParentRowBackgroundBrush);
+		MakeRoundedCorners(LayerTableViewRowStyle.ParentRowBackgroundHoveredBrush);
+		MakeRoundedCorners(LayerTableViewRowStyle.EvenRowBackgroundBrush);
+		MakeRoundedCorners(LayerTableViewRowStyle.EvenRowBackgroundHoveredBrush);
+		MakeRoundedCorners(LayerTableViewRowStyle.OddRowBackgroundBrush);
+		MakeRoundedCorners(LayerTableViewRowStyle.OddRowBackgroundHoveredBrush);
+		MakeRoundedCorners(LayerTableViewRowStyle.ActiveBrush);
+		MakeRoundedCorners(LayerTableViewRowStyle.ActiveHoveredBrush);
+		MakeRoundedCorners(LayerTableViewRowStyle.InactiveBrush);
+		MakeRoundedCorners(LayerTableViewRowStyle.InactiveHoveredBrush);
+		MakeRoundedCorners(LayerTableViewRowStyle.ActiveHighlightedBrush);
+		MakeRoundedCorners(LayerTableViewRowStyle.InactiveHighlightedBrush);
+
+		MakeRoundedCorners(LayerTableViewRowStyle.SelectorFocusedBrush);
+
+		Set(TEXT("MGFXMaterialEditor.Layers.TableViewRow"), LayerTableViewRowStyle);
 	}
 #endif
 

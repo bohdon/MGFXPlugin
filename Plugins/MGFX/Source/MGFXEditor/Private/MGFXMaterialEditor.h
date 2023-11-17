@@ -7,6 +7,7 @@
 #include "MGFXMaterialTypes.h"
 #include "MGFXMaterialBuilder.h"
 
+class SMGFXMaterialEditorLayers;
 class SMGFXMaterialEditorCanvas;
 class IMaterialEditor;
 class SArtboardPanel;
@@ -68,6 +69,8 @@ public:
 private:
 	TSharedPtr<SMGFXMaterialEditorCanvas> MGFXMaterialEditorCanvas;
 
+	TSharedPtr<SMGFXMaterialEditorLayers> LayersWidget;
+
 	/** The original MGFX material asset being edited. */
 	TObjectPtr<UMGFXMaterial> OriginalMGFXMaterial;
 
@@ -84,6 +87,7 @@ private:
 	void ExtendToolbar();
 
 	TSharedRef<SDockTab> SpawnTab_Canvas(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnTab_Layers(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_Details(const FSpawnTabArgs& Args);
 
 	/** Delete all non-root nodes from a material graph. */
@@ -152,8 +156,9 @@ private:
 	void ApplyMaterial(IMaterialEditor* MaterialEditor);
 
 public:
-	static const FName DetailsTabId;
 	static const FName CanvasTabId;
+	static const FName LayersTabId;
+	static const FName DetailsTabId;
 	static const FName Reroute_CanvasUVs;
 	static const FName Reroute_FilterWidth;
 	static const FName Reroute_LayersOutput;

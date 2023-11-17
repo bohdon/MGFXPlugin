@@ -10,6 +10,7 @@
 #include "MGFXMaterialEditorCommands.h"
 #include "MGFXPropertyMacros.h"
 #include "SMGFXMaterialEditorCanvas.h"
+#include "SMGFXMaterialEditorLayers.h"
 #include "MaterialGraph/MaterialGraph.h"
 #include "Materials/MaterialExpressionAppendVector.h"
 #include "Materials/MaterialExpressionConstant.h"
@@ -33,8 +34,9 @@
 constexpr auto ReadOnlyFlags = PropertyAccessUtil::EditorReadOnlyFlags;
 constexpr auto NotifyMode = EPropertyAccessChangeNotifyMode::Default;
 
-const FName FMGFXMaterialEditor::DetailsTabId(TEXT("MGFXMaterialEditorDetailsTab"));
 const FName FMGFXMaterialEditor::CanvasTabId(TEXT("MGFXMaterialEditorCanvasTab"));
+const FName FMGFXMaterialEditor::LayersTabId(TEXT("MGFXMaterialEditorLayersTab"));
+const FName FMGFXMaterialEditor::DetailsTabId(TEXT("MGFXMaterialEditorDetailsTab"));
 const FName FMGFXMaterialEditor::Reroute_CanvasUVs(TEXT("CanvasUVs"));
 const FName FMGFXMaterialEditor::Reroute_FilterWidth(TEXT("FilterWidth"));
 const FName FMGFXMaterialEditor::Reroute_LayersOutput(TEXT("LayersOutput"));
@@ -65,17 +67,24 @@ void FMGFXMaterialEditor::InitMGFXMaterialEditor(const EToolkitMode::Type Mode,
 			->SetOrientation(Orient_Vertical)
 			->Split(
 				FTabManager::NewSplitter()
-				->SetOrientation(Orient_Vertical)
+				->SetOrientation(Orient_Horizontal)
 				->Split
 				(
 					FTabManager::NewStack()
-					->SetSizeCoefficient(0.9f)
-					->AddTab(CanvasTabId, ETabState::OpenedTab)
+					->SetSizeCoefficient(0.2f)
+					->AddTab(LayersTabId, ETabState::OpenedTab)
 				)
 				->Split
 				(
 					FTabManager::NewStack()
-					->SetSizeCoefficient(0.1f)
+					->SetSizeCoefficient(0.6f)
+					->AddTab(CanvasTabId, ETabState::OpenedTab)
+					->SetHideTabWell(true)
+				)
+				->Split
+				(
+					FTabManager::NewStack()
+					->SetSizeCoefficient(0.2f)
 					->AddTab(DetailsTabId, ETabState::OpenedTab)
 				)
 			)
@@ -123,6 +132,10 @@ void FMGFXMaterialEditor::RegisterTabSpawners(const TSharedRef<FTabManager>& InT
 	            .SetGroup(WorkspaceMenuCategoryRef)
 	            .SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Viewports"));
 
+	InTabManager->RegisterTabSpawner(LayersTabId, FOnSpawnTab::CreateSP(this, &FMGFXMaterialEditor::SpawnTab_Layers))
+	            .SetDisplayName(LOCTEXT("LayersTabTitle", "Layers"))
+	            .SetGroup(WorkspaceMenuCategoryRef)
+	            .SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Layers"));
 
 	InTabManager->RegisterTabSpawner(DetailsTabId, FOnSpawnTab::CreateSP(this, &FMGFXMaterialEditor::SpawnTab_Details))
 	            .SetDisplayName(LOCTEXT("DetailsTabTitle", "Details"))
@@ -233,6 +246,15 @@ TSharedRef<SDockTab> FMGFXMaterialEditor::SpawnTab_Canvas(const FSpawnTabArgs& A
 	return SNew(SDockTab)
 	[
 		SAssignNew(MGFXMaterialEditorCanvas, SMGFXMaterialEditorCanvas)
+		.MGFXMaterialEditor(SharedThis(this))
+	];
+}
+
+TSharedRef<SDockTab> FMGFXMaterialEditor::SpawnTab_Layers(const FSpawnTabArgs& Args)
+{
+	return SNew(SDockTab)
+	[
+		SAssignNew(LayersWidget, SMGFXMaterialEditorLayers)
 		.MGFXMaterialEditor(SharedThis(this))
 	];
 }
