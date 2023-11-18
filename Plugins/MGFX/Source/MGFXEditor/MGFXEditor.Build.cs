@@ -20,8 +20,10 @@ public class MGFXEditor : ModuleRules
 		{
 			"CoreUObject",
 			"Engine",
+			"RenderCore",
 			"Slate",
 			"SlateCore",
+			"UMG",
 		});
 	}
 }

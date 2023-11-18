@@ -15,6 +15,8 @@ public:
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
 
+	void OnPostEngineInit();
+
 	/** Create a new MGFX material editor. */
 	TSharedRef<IMGFXMaterialEditor> CreateMGFXMaterialEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost,
 	                                                         UMGFXMaterial* MGFXMaterial);
