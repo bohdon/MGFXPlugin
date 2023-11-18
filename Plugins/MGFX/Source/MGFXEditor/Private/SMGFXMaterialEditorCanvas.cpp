@@ -143,7 +143,7 @@ int32 SMGFXMaterialEditorCanvas::PaintSelectionOutline(const FGeometry& Allotted
 	return LayerId;
 }
 
-void SMGFXMaterialEditorCanvas::OnLayerSelectionChanged(const TArray<UMGFXMaterialLayer*>& SelectedLayers)
+void SMGFXMaterialEditorCanvas::OnLayerSelectionChanged(const TArray<TObjectPtr<UMGFXMaterialLayer>>& SelectedLayers)
 {
 	SelectionOutlineAnim.Play(SharedThis(this));
 }

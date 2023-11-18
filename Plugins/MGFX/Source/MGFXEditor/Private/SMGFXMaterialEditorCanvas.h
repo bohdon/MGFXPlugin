@@ -62,5 +62,5 @@ protected:
 	/** Animates the width of selection outlines. */
 	FCurveSequence SelectionOutlineAnim;
 
-	void OnLayerSelectionChanged(const TArray<UMGFXMaterialLayer*>& SelectedLayers);
+	void OnLayerSelectionChanged(const TArray<TObjectPtr<UMGFXMaterialLayer>>& SelectedLayers);
 };

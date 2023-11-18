@@ -8,7 +8,6 @@
 
 UMGFXMaterialLayer::UMGFXMaterialLayer()
 	: Name(TEXT("Layer")),
-	  Index(0),
 	  MergeOperation(EMGFXLayerMergeOperation::Over)
 {
 }
@@ -33,18 +32,67 @@ FBox2D UMGFXMaterialLayer::GetBounds() const
 	return Shape ? Shape->GetBounds() : FBox2D(ForceInit);
 }
 
-void UMGFXMaterialLayer::AddChild(UMGFXMaterialLayer* Child)
+void UMGFXMaterialLayer::AddChild(UMGFXMaterialLayer* Child, int32 Index)
 {
 	check(Child);
 	check(!Children.Contains(Child));
 
-	Children.Add(Child);
-	Child->Parent = this;
+	Modify();
+
+	if (Children.IsValidIndex(Index))
+	{
+		Children.Insert(Child, Index);
+	}
+	else
+	{
+		Children.Add(Child);
+	}
+
+	Child->SetParent(this);
+}
+
+void UMGFXMaterialLayer::RemoveChild(UMGFXMaterialLayer* Child)
+{
+	if (Children.Contains(Child))
+	{
+		Modify();
+		Children.Remove(Child);
+		Child->SetParent(nullptr);
+	}
+}
+
+void UMGFXMaterialLayer::ReorderChild(UMGFXMaterialLayer* Child, int32 NewIndex)
+{
+	if (Children.Contains(Child))
+	{
+		Modify();
+		Children.Remove(Child);
+		Children.Insert(Child, NewIndex);
+	}
+}
+
+UMGFXMaterialLayer* UMGFXMaterialLayer::GetChild(int32 Index) const
+{
+	if (Children.IsValidIndex(Index))
+	{
+		return Children[Index];
+	}
+	return nullptr;
 }
 
 void UMGFXMaterialLayer::SetParent(UMGFXMaterialLayer* NewParent)
 {
+	Modify();
 	Parent = NewParent;
+}
+
+int32 UMGFXMaterialLayer::GetIndexInParent() const
+{
+	if (Parent)
+	{
+		return Parent->GetChildren().IndexOfByKey(this);
+	}
+	return INDEX_NONE;
 }
 
 void UMGFXMaterialLayer::PostLoad()
@@ -58,7 +106,6 @@ void UMGFXMaterialLayer::PostLoad()
 		if (Child->Parent.Get() != this)
 		{
 			Child->SetParent(this);
-			Child->Modify();
 		}
 	}
 #endif

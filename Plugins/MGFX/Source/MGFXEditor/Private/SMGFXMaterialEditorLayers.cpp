@@ -3,184 +3,16 @@
 
 #include "SMGFXMaterialEditorLayers.h"
 
-#include "MGFXEditorStyle.h"
 #include "MGFXMaterial.h"
 #include "MGFXMaterialEditor.h"
 #include "MGFXMaterialLayer.h"
 #include "SlateOptMacros.h"
+#include "SMGFXMaterialEditorLayerTreeView.h"
+#include "Framework/Commands/GenericCommands.h"
 
+#define LOCTEXT_NAMESPACE "MGFXMaterialEditor"
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
-
-// SMGFXMaterialLayerRow
-// ---------------------
-
-void SMGFXMaterialLayerRow::Construct(const FArguments& InArgs, const TSharedRef<SMGFXMaterialEditorLayerTreeView>& InOwningTreeView)
-{
-	OwningTreeView = InOwningTreeView;
-	Item = InArgs._Item;
-
-	STableRow::Construct(
-		STableRow::FArguments()
-		.Style(&FMGFXEditorStyle::Get().GetWidgetStyle<FTableRowStyle>("MGFXMaterialEditor.Layers.TableViewRow"))
-		.Padding(4.f)
-		.Content()
-		[
-			SNew(SBorder)
-			.Padding(6.f)
-			.BorderImage(this, &SMGFXMaterialLayerRow::GetBorder)
-			.Content()
-			[
-				SNew(SHorizontalBox)
-
-				+ SHorizontalBox::Slot()
-				  .Padding(0.f, 0.f, 6.f, 0.f)
-				  .VAlign(VAlign_Center)
-				  .HAlign(HAlign_Center)
-				  .AutoWidth()
-				[
-					SNew(SImage)
-					.ColorAndOpacity(FSlateColor::UseSubduedForeground())
-					.Image(FAppStyle::Get().GetBrush("Icons.DragHandle"))
-				]
-
-				+ SHorizontalBox::Slot()
-				  .Padding(0.f, 0.f, 6.f, 0.f)
-				  .HAlign(HAlign_Center)
-				  .VAlign(VAlign_Center)
-				  .AutoWidth()
-				[
-					SNew(SImage)
-					.Image(FAppStyle::GetBrush(TEXT("Layer.Icon16x")))
-				]
-
-				+ SHorizontalBox::Slot()
-				.HAlign(HAlign_Fill)
-				[
-					SNew(STextBlock)
-					.Text(FText::FromString(Item->Name))
-				]
-			]
-		],
-		InOwningTreeView
-	);
-
-	// an inner-content border is used to represent selection instead
-	SetBorderImage(FAppStyle::GetBrush("NoBorder"));
-}
-
-void SMGFXMaterialLayerRow::ConstructChildren(ETableViewMode::Type InOwnerTableMode, const TAttribute<FMargin>& InPadding, const TSharedRef<SWidget>& InContent)
-{
-	// copied from STableRow::ConstructChildren, but overridden purely to increase indent
-
-	this->Content = InContent;
-	InnerContentSlot = nullptr;
-
-	SHorizontalBox::FSlot* InnerContentSlotNativePtr = nullptr;
-
-	// Rows in a TreeView need an expander button and some indentation
-	this->ChildSlot
-	[
-		SNew(SHorizontalBox)
-
-		+ SHorizontalBox::Slot()
-		  .AutoWidth()
-		  .HAlign(HAlign_Right)
-		  .VAlign(VAlign_Fill)
-		[
-			SAssignNew(ExpanderArrowWidget, SExpanderArrow, SharedThis(this))
-			.StyleSet(ExpanderStyleSet)
-			.IndentAmount(20)
-			.ShouldDrawWires(false)
-		]
-
-		+ SHorizontalBox::Slot()
-		  .FillWidth(1)
-		  .Expose(InnerContentSlotNativePtr)
-		  .Padding(InPadding)
-		[
-			InContent
-		]
-	];
-
-	InnerContentSlot = InnerContentSlotNativePtr;
-}
-
-const FSlateBrush* SMGFXMaterialLayerRow::GetBorder() const
-{
-	return STableRow::GetBorder();
-}
-
-int32 SMGFXMaterialLayerRow::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect,
-                                     FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
-{
-	// don't draw focus border
-
-	LayerId = SBorder::OnPaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
-
-	if (ItemDropZone.IsSet())
-	{
-		if (PaintDropIndicatorEvent.IsBound())
-		{
-			LayerId = PaintDropIndicatorEvent.Execute(ItemDropZone.GetValue(), Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle,
-			                                          bParentEnabled);
-		}
-		else
-		{
-			OnPaintDropIndicator(ItemDropZone.GetValue(), Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
-		}
-	}
-
-	return LayerId;
-}
-
-TOptional<bool> SMGFXMaterialLayerRow::OnQueryShowFocus(const EFocusCause InFocusCause) const
-{
-	return TOptional<bool>(false);
-}
-
-
-// SMGFXMaterialEditorLayerTreeView
-// --------------------------------
-
-void SMGFXMaterialEditorLayerTreeView::Construct(const FArguments& InArgs, TSharedRef<SMGFXMaterialEditorLayers> InOwningLayers)
-{
-	STreeView::Construct(
-		STreeView::FArguments(InArgs)
-		.OnGenerateRow(this, &SMGFXMaterialEditorLayerTreeView::MakeTableRowWidget)
-		.OnGetChildren(this, &SMGFXMaterialEditorLayerTreeView::HandleGetChildrenForTree)
-	);
-}
-
-TSharedRef<ITableRow> SMGFXMaterialEditorLayerTreeView::MakeTableRowWidget(TObjectPtr<UMGFXMaterialLayer> InItem, const TSharedRef<STableViewBase>& OwnerTable)
-{
-	TSharedRef<SMGFXMaterialLayerRow> RowWidget = SNew(SMGFXMaterialLayerRow, SharedThis(this)).Item(InItem);
-
-	return RowWidget;
-}
-
-void SMGFXMaterialEditorLayerTreeView::HandleGetChildrenForTree(TObjectPtr<UMGFXMaterialLayer> InItem, TArray<TObjectPtr<UMGFXMaterialLayer>>& OutChildren)
-{
-	OutChildren = InItem->Children;
-}
-
-void SMGFXMaterialEditorLayerTreeView::SetExpansionRecursive(TObjectPtr<UMGFXMaterialLayer> TreeItem, bool bTowardsParent, bool bShouldBeExpanded)
-{
-	SetItemExpansion(TreeItem, bShouldBeExpanded);
-
-	if (bTowardsParent)
-	{
-		// not implemented
-	}
-	else
-	{
-		for (int32 Idx = 0; Idx < TreeItem->Children.Num(); ++Idx)
-		{
-			SetExpansionRecursive(TreeItem->Children[Idx], bTowardsParent, bShouldBeExpanded);
-		}
-	}
-}
 
 
 // SMGFXMaterialEditorLayers
@@ -190,29 +22,206 @@ void SMGFXMaterialEditorLayers::Construct(const FArguments& InArgs)
 {
 	check(InArgs._MGFXMaterialEditor.IsValid());
 
-	MGFXMaterialEditorPtr = InArgs._MGFXMaterialEditor;
+	MGFXMaterialEditor = InArgs._MGFXMaterialEditor;
 	OnSelectionChanged = InArgs._OnSelectionChanged;
 
-	const UMGFXMaterial* MGFXMaterial = MGFXMaterialEditorPtr.Pin()->GetOriginalMGFXMaterial();
+	MGFXMaterialEditor.Pin()->OnLayersChangedEvent.AddRaw(this, &SMGFXMaterialEditorLayers::OnLayersChanged);
+	MGFXMaterialEditor.Pin()->OnLayerSelectionChangedEvent.AddRaw(this, &SMGFXMaterialEditorLayers::OnEditorLayerSelectionChanged);
+
+	CommandList = MakeShareable(new FUICommandList);
+
+	CommandList->MapAction(
+		FGenericCommands::Get().Rename,
+		FExecuteAction::CreateSP(this, &SMGFXMaterialEditorLayers::BeginRename),
+		FCanExecuteAction::CreateSP(this, &SMGFXMaterialEditorLayers::CanRename));
+
+	const UMGFXMaterial* MGFXMaterial = MGFXMaterialEditor.Pin()->GetOriginalMGFXMaterial();
 	TreeRootItems.Add(MGFXMaterial->RootLayer);
 
 	ChildSlot
 	[
-		SAssignNew(TreeView, SMGFXMaterialEditorLayerTreeView, SharedThis(this))
-		.TreeItemsSource(&TreeRootItems)
-		.OnSelectionChanged(this, &SMGFXMaterialEditorLayers::HandleSelectionChanged)
+		SNew(SVerticalBox)
+
+		+ SVerticalBox::Slot()
+		  .AutoHeight()
+		  .HAlign(HAlign_Right)
+		[
+			SNew(SHorizontalBox)
+
+			+ SHorizontalBox::Slot()
+			.Padding(6.f)
+			[
+				SNew(SButton)
+				.OnClicked(this, &SMGFXMaterialEditorLayers::OnNewLayerButtonClicked)
+				.Content()
+				[
+					SNew(STextBlock)
+					.Text(INVTEXT("+"))
+				]
+			]
+		]
+
+		+ SVerticalBox::Slot()
+		[
+			SAssignNew(TreeView, SMGFXMaterialEditorLayerTreeView, SharedThis(this))
+			.TreeItemsSource(&TreeRootItems)
+			.OnSelectionChanged(this, &SMGFXMaterialEditorLayers::OnTreeSelectionChanged)
+			.OnContextMenuOpening(this, &SMGFXMaterialEditorLayers::OnTreeContextMenuOpening)
+			.OnSetExpansionRecursive(this, &SMGFXMaterialEditorLayers::OnSetExpansionRecursive)
+		]
 	];
 
+	// start with all layers expanded
 	for (const TObjectPtr<UMGFXMaterialLayer> RootItem : TreeRootItems)
 	{
-		TreeView->SetExpansionRecursive(RootItem, false, true);
+		TreeView->SetExpansionRecursive(RootItem, true);
 	}
 }
 
-void SMGFXMaterialEditorLayers::HandleSelectionChanged(TObjectPtr<UMGFXMaterialLayer> TreeItem, ESelectInfo::Type SelectInfo)
+void SMGFXMaterialEditorLayers::AddNewLayerAboveSelection()
 {
+	TArray<UMGFXMaterialLayer*> SelectedLayers = MGFXMaterialEditor.Pin()->GetSelectedLayers();
+	if (!SelectedLayers.IsEmpty())
+	{
+		for (const UMGFXMaterialLayer* Layer : SelectedLayers)
+		{
+			const int32 LayerIndex = Layer->GetIndexInParent();
+			// even if there's no parent, we can add as a root layer
+			UMGFXMaterialLayer* ParentLayer = Layer->GetParent();
+
+			// add layers at the same index, i.e. right on top
+			AddNewLayer(ParentLayer, LayerIndex);
+		}
+	}
+	else
+	{
+		// add to root layer
+		AddNewLayer(MGFXMaterialEditor.Pin()->GetOriginalMGFXMaterial()->RootLayer, 0);
+	}
+}
+
+void SMGFXMaterialEditorLayers::AddNewLayer(UMGFXMaterialLayer* Parent, int32 Index)
+{
+	UMGFXMaterial* MGFXMaterial = MGFXMaterialEditor.Pin()->GetOriginalMGFXMaterial();
+
+	UMGFXMaterialLayer* NewLayer = NewObject<UMGFXMaterialLayer>(MGFXMaterial, NAME_None, RF_Public | RF_Transactional);
+	AddLayer(NewLayer, Parent, Index);
+}
+
+void SMGFXMaterialEditorLayers::AddLayer(UMGFXMaterialLayer* NewLayer, UMGFXMaterialLayer* Parent, int32 Index)
+{
+	// TODO: add to root layers, don't require a parent
+	if (!Parent)
+	{
+		// no parent, add to root layer
+		Parent = MGFXMaterialEditor.Pin()->GetOriginalMGFXMaterial()->RootLayer;
+	}
+
+	check(!Parent->GetChildren().Contains(NewLayer));
+
+	Parent->AddChild(NewLayer, Index);
+	Parent->Modify();
+
+	// expand parent
+	TreeView->SetItemExpansion(Parent, true);
+	TreeView->RequestTreeRefresh();
+}
+
+void SMGFXMaterialEditorLayers::ReparentLayer(UMGFXMaterialLayer* Layer, UMGFXMaterialLayer* NewParent, int32 Index)
+{
+	// TODO: add to root layers, don't require a parent
+	if (!NewParent)
+	{
+		NewParent = MGFXMaterialEditor.Pin()->GetOriginalMGFXMaterial()->RootLayer;
+	}
+
+	if (NewParent->GetChildren().Contains(Layer))
+	{
+		// just reordering an existing child
+		NewParent->ReorderChild(Layer, Index);
+	}
+	else
+	{
+		NewParent->AddChild(Layer, Index);
+	}
+	NewParent->Modify();
+
+	// expand new parent
+	TreeView->SetItemExpansion(NewParent, true);
+	TreeView->RequestTreeRefresh();
+}
+
+
+void SMGFXMaterialEditorLayers::BeginRename()
+{
+}
+
+bool SMGFXMaterialEditorLayers::CanRename()
+{
+	const TArray<UMGFXMaterialLayer*> SelectedLayers = MGFXMaterialEditor.Pin()->GetSelectedLayers();
+	return SelectedLayers.Num() == 1;
+}
+
+void SMGFXMaterialEditorLayers::OnTreeSelectionChanged(TObjectPtr<UMGFXMaterialLayer> TreeItem, ESelectInfo::Type SelectInfo)
+{
+	// ignore incoming selection change events while broadcasting
+	bIsUpdatingSelection = true;
+
 	OnSelectionChanged.ExecuteIfBound(TreeItem);
+
+	bIsUpdatingSelection = false;
+}
+
+TSharedPtr<SWidget> SMGFXMaterialEditorLayers::OnTreeContextMenuOpening()
+{
+	FMenuBuilder MenuBuilder(true, CommandList);
+
+	MenuBuilder.BeginSection("Edit", LOCTEXT("Edit", "Edit"));
+	{
+		MenuBuilder.PushCommandList(MGFXMaterialEditor.Pin()->GetToolkitCommands());
+		{
+			MenuBuilder.AddMenuEntry(FGenericCommands::Get().Cut);
+			MenuBuilder.AddMenuEntry(FGenericCommands::Get().Copy);
+			MenuBuilder.AddMenuEntry(FGenericCommands::Get().Paste);
+			MenuBuilder.AddMenuEntry(FGenericCommands::Get().Duplicate);
+			MenuBuilder.AddMenuEntry(FGenericCommands::Get().Delete);
+		}
+		MenuBuilder.PopCommandList();
+
+		MenuBuilder.AddMenuEntry(FGenericCommands::Get().Rename);
+	}
+	MenuBuilder.EndSection();
+
+	return MenuBuilder.MakeWidget();
+}
+
+void SMGFXMaterialEditorLayers::OnSetExpansionRecursive(TObjectPtr<UMGFXMaterialLayer> InItem, bool bShouldBeExpanded)
+{
+	TreeView->SetExpansionRecursive(InItem, bShouldBeExpanded);
+}
+
+void SMGFXMaterialEditorLayers::OnEditorLayerSelectionChanged(const TArray<TObjectPtr<UMGFXMaterialLayer>>& SelectedLayers)
+{
+	if (!bIsUpdatingSelection)
+	{
+		TreeView->ClearSelection();
+		TreeView->SetItemSelection(SelectedLayers, true, ESelectInfo::Direct);
+	}
+}
+
+FReply SMGFXMaterialEditorLayers::OnNewLayerButtonClicked()
+{
+	AddNewLayerAboveSelection();
+
+	return FReply::Handled();
+}
+
+void SMGFXMaterialEditorLayers::OnLayersChanged()
+{
+	TreeView->RequestTreeRefresh();
 }
 
 
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
+
+#undef LOCTEXT_NAMESPACE

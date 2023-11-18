@@ -69,16 +69,11 @@ public:
 
 	FVector2D GetCanvasSize() const;
 
-	TArray<UMGFXMaterialLayer*> GetSelectedLayers() const;
+	TArray<TObjectPtr<UMGFXMaterialLayer>> GetSelectedLayers() const;
 
 	void SetSelectedLayers(const TArray<UMGFXMaterialLayer*>& Layers);
 
 	void ClearSelectedLayers();
-
-	DECLARE_MULTICAST_DELEGATE_OneParam(FLayerSelectionChangedDelegate, const TArray<UMGFXMaterialLayer*>& /*SelectedLayers*/);
-
-	/** Called when the layer selection has changed. */
-	FLayerSelectionChangedDelegate OnLayerSelectionChangedEvent;
 
 	void OnLayerSelectionChanged(UMGFXMaterialLayer* Layer);
 
@@ -96,6 +91,16 @@ public:
 	virtual void PostUndo(bool bSuccess) override;
 	virtual void PostRedo(bool bSuccess) override;
 
+	DECLARE_MULTICAST_DELEGATE_OneParam(FLayerSelectionChangedDelegate, const TArray<TObjectPtr<UMGFXMaterialLayer>>& /*SelectedLayers*/);
+
+	/** Called when the layer selection has changed. */
+	FLayerSelectionChangedDelegate OnLayerSelectionChangedEvent;
+
+	DECLARE_MULTICAST_DELEGATE(FLayersChangedDelegate);
+
+	/** Called when a layer is added, removed, or reparented. */
+	FLayersChangedDelegate OnLayersChangedEvent;
+
 private:
 	TSharedPtr<SMGFXMaterialEditorCanvas> MGFXMaterialEditorCanvas;
 
@@ -107,7 +112,7 @@ private:
 	TObjectPtr<UMGFXMaterial> OriginalMGFXMaterial;
 
 	/** The currently selected layers. */
-	TArray<UMGFXMaterialLayer*> SelectedLayers;
+	TArray<TObjectPtr<UMGFXMaterialLayer>> SelectedLayers;
 
 	/** Leftmost position where nodes for each layer should be aligned in the generated material. */
 	float NodePosBaselineLeft;
@@ -189,6 +194,17 @@ private:
 
 	/** Apply pending changes in a material editor to the original material. */
 	void ApplyMaterial(IMaterialEditor* MaterialEditor);
+
+	void DeleteSelectedLayers();
+	bool CanDeleteSelectedLayers();
+	void CopySelectedLayers();
+	bool CanCopySelectedLayers();
+	void CutSelectedLayers();
+	bool CanCutSelectedLayers();
+	void PasteLayers();
+	bool CanPasteLayers();
+	void DuplicateSelectedLayers();
+	bool CanDuplicateSelectedLayers();
 
 public:
 	static const FName CanvasTabId;

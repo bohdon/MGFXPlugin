@@ -72,7 +72,7 @@ public:
 	TObjectPtr<UMaterial> GeneratedMaterial;
 
 	/** The root layer containing all other layers in the material. */
-	UPROPERTY(EditAnywhere, Instanced, NoClear, Category = "Layers")
+	UPROPERTY()
 	TObjectPtr<UMGFXMaterialLayer> RootLayer;
 
 	virtual void PostLoad() override;

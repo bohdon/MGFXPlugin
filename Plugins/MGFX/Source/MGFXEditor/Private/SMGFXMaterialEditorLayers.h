@@ -7,57 +7,7 @@
 
 class FMGFXMaterialEditor;
 class SMGFXMaterialEditorLayerTreeView;
-class SMGFXMaterialEditorLayers;
-class UMGFXMaterial;
 class UMGFXMaterialLayer;
-
-
-class SMGFXMaterialLayerRow : public STableRow<TObjectPtr<UMGFXMaterialLayer>>
-{
-public:
-	SLATE_BEGIN_ARGS(SMGFXMaterialLayerRow)
-		{
-		}
-
-		/** The list item for this row */
-		SLATE_ARGUMENT(TObjectPtr<UMGFXMaterialLayer>, Item)
-
-	SLATE_END_ARGS()
-
-	/** Construct function for this widget */
-	void Construct(const FArguments& InArgs, const TSharedRef<SMGFXMaterialEditorLayerTreeView>& InOwningTreeView);
-	virtual void ConstructChildren(ETableViewMode::Type InOwnerTableMode, const TAttribute<FMargin>& InPadding, const TSharedRef<SWidget>& InContent) override;
-
-	virtual const FSlateBrush* GetBorder() const override;
-
-	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements,
-	                      int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
-	virtual TOptional<bool> OnQueryShowFocus(const EFocusCause InFocusCause) const override;
-
-protected:
-	/** The item associated with this row of data */
-	TWeakObjectPtr<UMGFXMaterialLayer> Item;
-
-	/** Weak pointer to the owning tree view */
-	TWeakPtr<SMGFXMaterialEditorLayerTreeView> OwningTreeView;
-
-	FSlateBrush LayerIconBrush;
-};
-
-
-/**
- * Tree view displaying all layers in a UMGFXMaterial.
- */
-class MGFXEDITOR_API SMGFXMaterialEditorLayerTreeView : public STreeView<TObjectPtr<UMGFXMaterialLayer>>
-{
-public:
-	void Construct(const FArguments& InArgs, TSharedRef<SMGFXMaterialEditorLayers> InOwningLayers);
-
-	TSharedRef<ITableRow> MakeTableRowWidget(TObjectPtr<UMGFXMaterialLayer> InItem, const TSharedRef<STableViewBase>& OwnerTable);
-	void HandleGetChildrenForTree(TObjectPtr<UMGFXMaterialLayer> InItem, TArray<TObjectPtr<UMGFXMaterialLayer>>& OutChildren);
-
-	void SetExpansionRecursive(TObjectPtr<UMGFXMaterialLayer> InItem, bool bTowardsParent, bool bShouldBeExpanded);
-};
 
 
 /**
@@ -83,7 +33,20 @@ public:
 	void Construct(const FArguments& InArgs);
 
 	/** Weak pointer to the owning material editor. */
-	TWeakPtr<FMGFXMaterialEditor> MGFXMaterialEditorPtr;
+	TWeakPtr<FMGFXMaterialEditor> MGFXMaterialEditor;
+
+	/** Add a new layer above the selected layers. */
+	void AddNewLayerAboveSelection();
+
+	void AddNewLayer(UMGFXMaterialLayer* Parent, int32 Index = 0);
+
+	void AddLayer(UMGFXMaterialLayer* NewLayer, UMGFXMaterialLayer* Parent, int32 Index);
+
+	void ReparentLayer(UMGFXMaterialLayer* Layer, UMGFXMaterialLayer* NewParent, int32 Index);
+
+	void BeginRename();
+
+	bool CanRename();
 
 protected:
 	TSharedPtr<SMGFXMaterialEditorLayerTreeView> TreeView;
@@ -92,5 +55,21 @@ protected:
 
 	TArray<TObjectPtr<UMGFXMaterialLayer>> TreeRootItems;
 
-	void HandleSelectionChanged(TObjectPtr<UMGFXMaterialLayer> TreeItem, ESelectInfo::Type SelectInfo);
+	/** Commands specific to the layers view. */
+	TSharedPtr<FUICommandList> CommandList;
+
+	/** Flag used to ignore selection changes originating from the tree view. */
+	bool bIsUpdatingSelection = false;
+
+	void OnTreeSelectionChanged(TObjectPtr<UMGFXMaterialLayer> TreeItem, ESelectInfo::Type SelectInfo);
+	TSharedPtr<SWidget> OnTreeContextMenuOpening();
+	void OnSetExpansionRecursive(TObjectPtr<UMGFXMaterialLayer> InItem, bool bShouldBeExpanded);
+
+	/** Called when the selection has changed and the tree view should update to match. */
+	void OnEditorLayerSelectionChanged(const TArray<TObjectPtr<UMGFXMaterialLayer>>& SelectedLayers);
+
+	FReply OnNewLayerButtonClicked();
+
+	// called when a layer is added, removed, or reparented
+	void OnLayersChanged();
 };

@@ -25,10 +25,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Layer")
 	FString Name;
 
-	/** The index of the layer among all layers. */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Layer")
-	int32 Index;
-
 	/** The merge operation to use for visuals in this layer. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Layer")
 	EMGFXLayerMergeOperation MergeOperation;
@@ -40,9 +36,6 @@ public:
 	/** The shape to create for this layer. */
 	UPROPERTY(EditAnywhere, Instanced, Category = "Shape")
 	TObjectPtr<UMGFXMaterialShape> Shape;
-
-	UPROPERTY(EditAnywhere, Instanced, Meta = (TitleProperty = "Name"), Category = "Children")
-	TArray<TObjectPtr<UMGFXMaterialLayer>> Children;
 
 	/** Return the accumulated transform of this layer. */
 	FTransform2D GetTransform() const;
@@ -57,15 +50,34 @@ public:
 	FBox2D GetBounds() const;
 
 	/** Add a new child layer. */
-	void AddChild(UMGFXMaterialLayer* Child);
+	void AddChild(UMGFXMaterialLayer* Child, int32 Index = INDEX_NONE);
+
+	/** Remove a child layer, and clear its parent. */
+	void RemoveChild(UMGFXMaterialLayer* Child);
+
+	/** Reorder a child layer. */
+	void ReorderChild(UMGFXMaterialLayer* Child, int32 NewIndex);
+
+	const TArray<UMGFXMaterialLayer*>& GetChildren() const { return Children; }
+
+	int32 NumChildren() const { return Children.Num(); }
+
+	bool HasChildren() const { return !Children.IsEmpty(); }
+
+	UMGFXMaterialLayer* GetChild(int32 Index) const;
 
 	UMGFXMaterialLayer* GetParent() const { return Parent; }
 
 	void SetParent(UMGFXMaterialLayer* NewParent);
 
+	int32 GetIndexInParent() const;
+
 	virtual void PostLoad() override;
 
 protected:
+	UPROPERTY()
+	TArray<TObjectPtr<UMGFXMaterialLayer>> Children;
+
 	/** The parent layer, if any. */
 	UPROPERTY()
 	TObjectPtr<UMGFXMaterialLayer> Parent;

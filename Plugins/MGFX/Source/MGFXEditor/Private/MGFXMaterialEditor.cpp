@@ -13,6 +13,7 @@
 #include "ObjectEditorUtils.h"
 #include "SMGFXMaterialEditorCanvas.h"
 #include "SMGFXMaterialEditorLayers.h"
+#include "Framework/Commands/GenericCommands.h"
 #include "Materials/MaterialExpressionAppendVector.h"
 #include "Materials/MaterialExpressionConstant.h"
 #include "Materials/MaterialExpressionConstant2Vector.h"
@@ -226,7 +227,7 @@ FVector2D FMGFXMaterialEditor::GetCanvasSize() const
 	return FVector2D(OriginalMGFXMaterial->BaseCanvasSize);
 }
 
-TArray<UMGFXMaterialLayer*> FMGFXMaterialEditor::GetSelectedLayers() const
+TArray<TObjectPtr<UMGFXMaterialLayer>> FMGFXMaterialEditor::GetSelectedLayers() const
 {
 	return SelectedLayers;
 }
@@ -373,6 +374,31 @@ void FMGFXMaterialEditor::BindCommands()
 	UICommandList->MapAction(
 		Commands.RegenerateMaterial,
 		FExecuteAction::CreateSP(this, &FMGFXMaterialEditor::RegenerateMaterial));
+
+	UICommandList->MapAction(
+		FGenericCommands::Get().Delete,
+		FExecuteAction::CreateSP(this, &FMGFXMaterialEditor::DeleteSelectedLayers),
+		FCanExecuteAction::CreateSP(this, &FMGFXMaterialEditor::CanDeleteSelectedLayers));
+
+	UICommandList->MapAction(
+		FGenericCommands::Get().Copy,
+		FExecuteAction::CreateSP(this, &FMGFXMaterialEditor::CopySelectedLayers),
+		FCanExecuteAction::CreateSP(this, &FMGFXMaterialEditor::CanCopySelectedLayers));
+
+	UICommandList->MapAction(
+		FGenericCommands::Get().Cut,
+		FExecuteAction::CreateSP(this, &FMGFXMaterialEditor::CutSelectedLayers),
+		FCanExecuteAction::CreateSP(this, &FMGFXMaterialEditor::CanCutSelectedLayers));
+
+	UICommandList->MapAction(
+		FGenericCommands::Get().Paste,
+		FExecuteAction::CreateSP(this, &FMGFXMaterialEditor::PasteLayers),
+		FCanExecuteAction::CreateSP(this, &FMGFXMaterialEditor::CanPasteLayers));
+
+	UICommandList->MapAction(
+		FGenericCommands::Get().Duplicate,
+		FExecuteAction::CreateSP(this, &FMGFXMaterialEditor::DuplicateSelectedLayers),
+		FCanExecuteAction::CreateSP(this, &FMGFXMaterialEditor::CanDuplicateSelectedLayers));
 }
 
 void FMGFXMaterialEditor::ExtendToolbar()
@@ -553,7 +579,7 @@ FMGFXMaterialLayerOutputs FMGFXMaterialEditor::Generate_Layer(FMGFXMaterialBuild
 
 	const FString LayerName = Layer->Name.IsEmpty() ? Layer->GetName() : Layer->Name;
 	const FString ParamPrefix = LayerName + ".";
-	const FName ParamGroup = FName(FString::Printf(TEXT("[%d] %s"), Layer->Index, *LayerName));
+	const FName ParamGroup = FName(FString::Printf(TEXT("%s"), *LayerName));
 
 	// reset baseline and move to new line
 	NodePos.X = NodePosBaselineLeft;
@@ -566,7 +592,7 @@ FMGFXMaterialLayerOutputs FMGFXMaterialEditor::Generate_Layer(FMGFXMaterialBuild
 	NodePos.X += GridSize * 15;
 
 	// apply layer transform (if needed), and store as a reroute for children (if needed)
-	const bool bCreateReroute = !Layer->Children.IsEmpty();
+	const bool bCreateReroute = Layer->HasChildren();
 	UMaterialExpression* UVsExp = Generate_TransformUVs(Builder, NodePos, Layer->Transform, ParentUVsExp, ParamPrefix, ParamGroup, bCreateReroute);
 
 	if (bCreateReroute)
@@ -577,9 +603,9 @@ FMGFXMaterialLayerOutputs FMGFXMaterialEditor::Generate_Layer(FMGFXMaterialBuild
 
 	// generate children layers bottom to top
 	FMGFXMaterialLayerOutputs ChildOutputs = LayerOutputs;
-	for (int32 Idx = Layer->Children.Num() - 1; Idx >= 0; --Idx)
+	for (int32 Idx = Layer->NumChildren() - 1; Idx >= 0; --Idx)
 	{
-		const UMGFXMaterialLayer* ChildLayer = Layer->Children[Idx];
+		const UMGFXMaterialLayer* ChildLayer = Layer->GetChild(Idx);
 
 		check(LayerOutputs.UVsExp);
 		ChildOutputs = Generate_Layer(Builder, NodePos, ChildLayer, LayerOutputs.UVsExp, ChildOutputs);
@@ -597,7 +623,7 @@ FMGFXMaterialLayerOutputs FMGFXMaterialEditor::Generate_Layer(FMGFXMaterialBuild
 	}
 
 	// merge this layer with its children
-	if (Layer->Children.Num() > 0)
+	if (Layer->HasChildren())
 	{
 		if (ChildOutputs.VisualExp && ChildOutputs.VisualExp != LayerOutputs.VisualExp)
 		{
@@ -1007,6 +1033,89 @@ void FMGFXMaterialEditor::ApplyMaterial(IMaterialEditor* MaterialEditor)
 	{
 		ApplyAction->Execute();
 	}
+}
+
+void FMGFXMaterialEditor::DeleteSelectedLayers()
+{
+	TArray<UMGFXMaterialLayer*> LayersToDelete = SelectedLayers.FilterByPredicate([](const UMGFXMaterialLayer* Layer)
+	{
+		return Layer->GetParent() != nullptr;
+	});
+
+	ClearSelectedLayers();
+
+	{
+		FScopedTransaction Transaction(LOCTEXT("DeleteLayer", "Delete Layer"));
+		OriginalMGFXMaterial->Modify();
+
+		for (UMGFXMaterialLayer* Layer : LayersToDelete)
+		{
+			// don't delete the root layer
+			if (!Layer->GetParent())
+			{
+				continue;
+			}
+
+			Layer->GetParent()->RemoveChild(Layer);
+		}
+	}
+
+	OnLayersChangedEvent.Broadcast();
+}
+
+bool FMGFXMaterialEditor::CanDeleteSelectedLayers()
+{
+	const TArray<UMGFXMaterialLayer*> LayersToDelete = SelectedLayers.FilterByPredicate([](const UMGFXMaterialLayer* Layer)
+	{
+		return Layer->GetParent() != nullptr;
+	});
+	return !LayersToDelete.IsEmpty();
+}
+
+void FMGFXMaterialEditor::CopySelectedLayers()
+{
+	// TODO
+}
+
+bool FMGFXMaterialEditor::CanCopySelectedLayers()
+{
+	return !SelectedLayers.IsEmpty();
+}
+
+void FMGFXMaterialEditor::CutSelectedLayers()
+{
+	// TODO
+
+	OnLayersChangedEvent.Broadcast();
+}
+
+bool FMGFXMaterialEditor::CanCutSelectedLayers()
+{
+	return !SelectedLayers.IsEmpty();
+}
+
+void FMGFXMaterialEditor::PasteLayers()
+{
+	// TODO
+
+	OnLayersChangedEvent.Broadcast();
+}
+
+bool FMGFXMaterialEditor::CanPasteLayers()
+{
+	return true;
+}
+
+void FMGFXMaterialEditor::DuplicateSelectedLayers()
+{
+	// TODO
+
+	OnLayersChangedEvent.Broadcast();
+}
+
+bool FMGFXMaterialEditor::CanDuplicateSelectedLayers()
+{
+	return !SelectedLayers.IsEmpty();
 }
 
 
