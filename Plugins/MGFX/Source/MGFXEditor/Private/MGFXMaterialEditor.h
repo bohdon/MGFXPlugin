@@ -44,6 +44,8 @@ class MGFXEDITOR_API FMGFXMaterialEditor : public IMGFXMaterialEditor, public FN
 public:
 	FMGFXMaterialEditor();
 
+	virtual ~FMGFXMaterialEditor();
+
 
 	/** Initialize the editor for a material. */
 	void InitMGFXMaterialEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, UMGFXMaterial* InMGFXMaterial);
@@ -60,8 +62,6 @@ public:
 
 	/** Return the material asset being generated. */
 	UMaterial* GetGeneratedMaterial() const;
-
-	IMaterialEditor* GetOrOpenMaterialEditor(UMaterial* Material) const;
 
 	/** Fully regenerate the target material. */
 	void RegenerateMaterial();
@@ -92,6 +92,11 @@ public:
 	                            const TArray<TPair<UObject*, FTransactionObjectEvent>>& TransactionObjectContexts) const override;
 	virtual void PostUndo(bool bSuccess) override;
 	virtual void PostRedo(bool bSuccess) override;
+
+	DECLARE_MULTICAST_DELEGATE_OneParam(FMaterialChangedDelegate, UMaterial* /*NewMaterial*/);
+
+	/** Called when the material asset has been set or changed. */
+	FMaterialChangedDelegate OnMaterialChangedEvent;
 
 	DECLARE_MULTICAST_DELEGATE_OneParam(FLayerSelectionChangedDelegate, const TArray<TObjectPtr<UMGFXMaterialLayer>>& /*SelectedLayers*/);
 
@@ -193,9 +198,6 @@ private:
 	 */
 	UMaterialExpression* Generate_ShapeStroke(FMGFXMaterialBuilder& Builder, FVector2D& NodePos, const UMGFXMaterialShapeStroke* Stroke,
 	                                          UMaterialExpression* ShapeExp, const FString& ParamPrefix, const FName& ParamGroup);
-
-	/** Apply pending changes in a material editor to the original material. */
-	void ApplyMaterial(IMaterialEditor* MaterialEditor);
 
 	void DeleteSelectedLayers();
 	bool CanDeleteSelectedLayers();

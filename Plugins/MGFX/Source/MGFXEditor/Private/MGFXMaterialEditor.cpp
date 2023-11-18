@@ -56,6 +56,11 @@ FMGFXMaterialEditor::FMGFXMaterialEditor()
 {
 }
 
+FMGFXMaterialEditor::~FMGFXMaterialEditor()
+{
+	GEditor->UnregisterForUndo(this);
+}
+
 void FMGFXMaterialEditor::InitMGFXMaterialEditor(const EToolkitMode::Type Mode,
                                                  const TSharedPtr<IToolkitHost>& InitToolkitHost,
                                                  UMGFXMaterial* InMGFXMaterial)
@@ -67,13 +72,14 @@ void FMGFXMaterialEditor::InitMGFXMaterialEditor(const EToolkitMode::Type Mode,
 	FMGFXMaterialEditorCommands::Register();
 	BindCommands();
 
+	GEditor->RegisterForUndo(this);
+
 	// initialize details view
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 
 	FDetailsViewArgs DetailsViewArgs;
 	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
 	DetailsViewArgs.NotifyHook = this;
-	// DetailsViewArgs.bAllowMultipleTopLevelObjects = true;
 
 	DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
 	DetailsView->SetIsPropertyVisibleDelegate(FIsPropertyVisible::CreateSP(this, &FMGFXMaterialEditor::IsDetailsPropertyVisible));
@@ -167,33 +173,6 @@ UMaterial* FMGFXMaterialEditor::GetGeneratedMaterial() const
 	return MGFXMaterial ? MGFXMaterial->Material : nullptr;
 }
 
-IMaterialEditor* FMGFXMaterialEditor::GetOrOpenMaterialEditor(UMaterial* Material) const
-{
-	check(Material);
-
-	// find or open the material editor
-	IAssetEditorInstance* OpenEditor = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorForAsset(Material, true);
-	IMaterialEditor* MaterialEditor = static_cast<IMaterialEditor*>(OpenEditor);
-	if (!MaterialEditor)
-	{
-		// try to open the editor
-		if (!GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(Material))
-		{
-			return nullptr;
-		}
-
-		OpenEditor = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorForAsset(Material, true);
-		MaterialEditor = static_cast<IMaterialEditor*>(OpenEditor);
-
-		if (!MaterialEditor)
-		{
-			return nullptr;
-		}
-	}
-
-	return MaterialEditor;
-}
-
 void FMGFXMaterialEditor::RegenerateMaterial()
 {
 	UMaterial* Material = GetGeneratedMaterial();
@@ -242,7 +221,7 @@ UMaterial* FMGFXMaterialEditor::CreateMaterialAsset()
 
 		const FString MGFXMaterialPath = MGFXMaterial->GetPackage()->GetPathName();
 		const FString PackagePath = FPackageName::GetLongPackagePath(MGFXMaterialPath);
-		const FString AssetName = FPackageName::GetShortName(MGFXMaterialPath) + TEXT("_M");
+		const FString AssetName = TEXT("M_") + FPackageName::GetShortName(MGFXMaterialPath);
 
 		UMaterialFactoryNew* MaterialFactory = NewObject<UMaterialFactoryNew>();
 		UObject* NewMaterial = AssetToolsModule.Get().CreateAsset(AssetName, PackagePath, UMaterial::StaticClass(), MaterialFactory);
@@ -250,6 +229,7 @@ UMaterial* FMGFXMaterialEditor::CreateMaterialAsset()
 		if (NewMaterial)
 		{
 			MGFXMaterial->Material = Cast<UMaterial>(NewMaterial);
+			OnMaterialChangedEvent.Broadcast(MGFXMaterial->Material);
 		}
 	}
 
@@ -360,9 +340,8 @@ void FMGFXMaterialEditor::NotifyPostChange(const FPropertyChangedEvent& Property
 
 		if (PropertyName == GET_MEMBER_NAME_CHECKED(UMGFXMaterial, Material))
 		{
-			// TODO: broadcast event
-			// update canvas material
-			CanvasWidget->OnMaterialChanged();
+			OnMaterialChangedEvent.Broadcast(MGFXMaterial->Material);
+			return;
 		}
 	}
 
@@ -1072,40 +1051,30 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_ShapeStroke(FMGFXMaterialBuil
 	return TintExp;
 }
 
-void FMGFXMaterialEditor::ApplyMaterial(IMaterialEditor* MaterialEditor)
-{
-	const TSharedRef<FUICommandList> MaterialEditorCommands = MaterialEditor->GetToolkitCommands();
-	const FUIAction* ApplyAction = MaterialEditorCommands->GetActionForCommand(FMaterialEditorCommands::Get().Apply);
-	if (ApplyAction)
-	{
-		ApplyAction->Execute();
-	}
-}
-
 void FMGFXMaterialEditor::DeleteSelectedLayers()
 {
+	FScopedTransaction Transaction(LOCTEXT("DeleteLayer", "Delete Layer"));
+
+	MGFXMaterial->Modify();
+
 	TArray<UMGFXMaterialLayer*> LayersToDelete = SelectedLayers;
 
 	ClearSelectedLayers();
 
+	for (UMGFXMaterialLayer* Layer : LayersToDelete)
 	{
-		FScopedTransaction Transaction(LOCTEXT("DeleteLayer", "Delete Layer"));
-		MGFXMaterial->Modify();
-
-		for (UMGFXMaterialLayer* Layer : LayersToDelete)
+		if (Layer->GetParentLayer())
 		{
-			if (Layer->GetParentLayer())
-			{
-				Layer->GetParentLayer()->RemoveLayer(Layer);
-			}
-			else
-			{
-				MGFXMaterial->RemoveLayer(Layer);
-			}
+			Layer->GetParentLayer()->RemoveLayer(Layer);
+		}
+		else
+		{
+			MGFXMaterial->RemoveLayer(Layer);
 		}
 	}
 
 	RegenerateMaterial();
+
 	OnLayersChangedEvent.Broadcast();
 }
 

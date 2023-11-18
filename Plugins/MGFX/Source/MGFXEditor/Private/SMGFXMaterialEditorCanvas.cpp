@@ -17,7 +17,8 @@ void SMGFXMaterialEditorCanvas::Construct(const FArguments& InArgs)
 
 	MGFXMaterialEditor = InArgs._MGFXMaterialEditor;
 
-	MGFXMaterialEditor.Pin()->OnLayerSelectionChangedEvent.AddSP(this, &SMGFXMaterialEditorCanvas::OnLayerSelectionChanged);
+	MGFXMaterialEditor.Pin()->OnLayerSelectionChangedEvent.AddRaw(this, &SMGFXMaterialEditorCanvas::OnLayerSelectionChanged);
+	MGFXMaterialEditor.Pin()->OnMaterialChangedEvent.AddRaw(this, &SMGFXMaterialEditorCanvas::OnMaterialChanged);
 
 	PreviewImageBrush.SetResourceObject(MGFXMaterialEditor.Pin()->GetGeneratedMaterial());
 
@@ -70,9 +71,9 @@ void SMGFXMaterialEditorCanvas::UpdateArtboardSize()
 	}
 }
 
-void SMGFXMaterialEditorCanvas::OnMaterialChanged()
+void SMGFXMaterialEditorCanvas::OnMaterialChanged(UMaterial* NewMaterial)
 {
-	PreviewImageBrush.SetResourceObject(MGFXMaterialEditor.Pin()->GetGeneratedMaterial());
+	PreviewImageBrush.SetResourceObject(NewMaterial);
 }
 
 UMGFXMaterial* SMGFXMaterialEditorCanvas::GetMGFXMaterial() const

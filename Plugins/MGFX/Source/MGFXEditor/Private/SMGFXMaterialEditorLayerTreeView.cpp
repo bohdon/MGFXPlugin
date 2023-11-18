@@ -173,3 +173,5 @@ void SMGFXMaterialEditorLayerTreeView::SetExpansionRecursive(TObjectPtr<UMGFXMat
 		SetExpansionRecursive(TreeItem->GetLayer(Idx), bShouldBeExpanded);
 	}
 }
+
+END_SLATE_FUNCTION_BUILD_OPTIMIZATION
