@@ -13,10 +13,15 @@ BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 void SMGFXMaterialEditorCanvas::Construct(const FArguments& InArgs)
 {
+	check(InArgs._MGFXMaterialEditor.IsValid());
+
 	MGFXMaterialEditor = InArgs._MGFXMaterialEditor;
-	check(MGFXMaterialEditor.IsValid());
+
+	MGFXMaterialEditor.Pin()->OnLayerSelectionChangedEvent.AddSP(this, &SMGFXMaterialEditorCanvas::OnLayerSelectionChanged);
 
 	PreviewImageBrush.SetResourceObject(MGFXMaterialEditor.Pin()->GetGeneratedMaterial());
+
+	SelectionOutlineAnim = FCurveSequence(0.0f, 0.15f, ECurveEaseFunction::QuadOut);
 
 	ChildSlot
 	[
@@ -87,7 +92,9 @@ int32 SMGFXMaterialEditorCanvas::PaintSelectionOutline(const FGeometry& Allotted
 	TArray<UMGFXMaterialLayer*> SelectedLayers = MGFXMaterialEditor.Pin()->GetSelectedLayers();
 
 	const FLinearColor OutlineColor = FStyleColors::Select.GetSpecifiedColor();
-	constexpr float OutlineWidth = 2.f;
+
+	// flash a broad width selection outline to draw attention
+	const float OutlineWidth = FMath::Lerp(3.f, 1.f, SelectionOutlineAnim.GetLerp());
 
 	for (const UMGFXMaterialLayer* SelectedLayer : SelectedLayers)
 	{
@@ -134,6 +141,11 @@ int32 SMGFXMaterialEditorCanvas::PaintSelectionOutline(const FGeometry& Allotted
 	}
 
 	return LayerId;
+}
+
+void SMGFXMaterialEditorCanvas::OnLayerSelectionChanged(const TArray<UMGFXMaterialLayer*>& SelectedLayers)
+{
+	SelectionOutlineAnim.Play(SharedThis(this));
 }
 
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION

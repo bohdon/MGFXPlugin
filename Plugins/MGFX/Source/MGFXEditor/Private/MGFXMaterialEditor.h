@@ -39,7 +39,7 @@ struct FMGFXMaterialLayerOutputs
 /**
  * Motion graphics editor for MGFX materials.
  */
-class MGFXEDITOR_API FMGFXMaterialEditor : public IMGFXMaterialEditor
+class MGFXEDITOR_API FMGFXMaterialEditor : public IMGFXMaterialEditor, public FNotifyHook, public FEditorUndoClient
 {
 public:
 	FMGFXMaterialEditor();
@@ -62,6 +62,8 @@ public:
 	/** Return the generated material asset being edited. */
 	UMaterial* GetGeneratedMaterial() const;
 
+	IMaterialEditor* GetOrOpenMaterialEditor(UMaterial* Material) const;
+
 	/** Fully regenerate the target material. */
 	void RegenerateMaterial();
 
@@ -73,11 +75,26 @@ public:
 
 	void ClearSelectedLayers();
 
+	DECLARE_MULTICAST_DELEGATE_OneParam(FLayerSelectionChangedDelegate, const TArray<UMGFXMaterialLayer*>& /*SelectedLayers*/);
+
+	/** Called when the layer selection has changed. */
+	FLayerSelectionChangedDelegate OnLayerSelectionChangedEvent;
+
 	void OnLayerSelectionChanged(UMGFXMaterialLayer* Layer);
 
 	bool IsDetailsPropertyVisible(const FPropertyAndParent& PropertyAndParent);
 
 	bool IsDetailsRowVisible(FName InRowName, FName InParentName);
+
+	// FNotifyHook
+	virtual void NotifyPreChange(FProperty* PropertyAboutToChange) override;
+	virtual void NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FProperty* PropertyThatChanged) override;
+
+	// FEditorUndoClient
+	virtual bool MatchesContext(const FTransactionContext& InContext,
+	                            const TArray<TPair<UObject*, FTransactionObjectEvent>>& TransactionObjectContexts) const override;
+	virtual void PostUndo(bool bSuccess) override;
+	virtual void PostRedo(bool bSuccess) override;
 
 private:
 	TSharedPtr<SMGFXMaterialEditorCanvas> MGFXMaterialEditorCanvas;

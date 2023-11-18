@@ -3,12 +3,9 @@
 
 #include "MGFXMaterialBuilder.h"
 
-#include "IMaterialEditor.h"
 #include "MaterialEditingLibrary.h"
 #include "MGFXEditorModule.h"
 #include "MGFXPropertyMacros.h"
-#include "MaterialGraph/MaterialGraph.h"
-#include "MaterialGraph/MaterialGraphNode.h"
 #include "Materials/MaterialExpressionAppendVector.h"
 #include "Materials/MaterialExpressionComment.h"
 #include "Materials/MaterialExpressionComponentMask.h"
@@ -18,15 +15,23 @@
 #include "UObject/PropertyAccessUtil.h"
 
 
-FMGFXMaterialBuilder::FMGFXMaterialBuilder(IMaterialEditor* InMaterialEditor, UMaterialGraph* InMaterialGraph)
-	: MaterialEditor(InMaterialEditor),
-	  MaterialGraph(InMaterialGraph)
+FMGFXMaterialBuilder::FMGFXMaterialBuilder(UMaterial* InMaterial)
+	: Material(InMaterial)
 {
 }
 
 UMaterialExpression* FMGFXMaterialBuilder::Create(TSubclassOf<UMaterialExpression> ExpressionClass, const FVector2D& NodePos) const
 {
-	return MaterialEditor->CreateNewMaterialExpression(ExpressionClass, NodePos, false, false);
+	UMaterialExpression* NewExp = UMaterialEditingLibrary::CreateMaterialExpression(Material, ExpressionClass, NodePos.X, NodePos.Y);
+
+	// UMaterialEditingLibrary doesn't add comments to the correct collection, fix it
+	if (UMaterialExpressionComment* CommentExp = Cast<UMaterialExpressionComment>(NewExp))
+	{
+		Material->GetExpressionCollection().RemoveExpression(CommentExp);
+		Material->GetExpressionCollection().AddComment(CommentExp);
+	}
+
+	return NewExp;
 }
 
 UMaterialExpressionComponentMask* FMGFXMaterialBuilder::CreateComponentMask(const FVector2D& NodePos, uint32 R, uint32 G, uint32 B, uint32 A) const
@@ -82,11 +87,10 @@ UMaterialExpressionNamedRerouteDeclaration* FMGFXMaterialBuilder::CreateNamedRer
 UMaterialExpressionNamedRerouteUsage* FMGFXMaterialBuilder::CreateNamedRerouteUsage(const FVector2D& NodePos,
                                                                                     UMaterialExpressionNamedRerouteDeclaration* Declaration) const
 {
+	check(Declaration);
 	UMaterialExpressionNamedRerouteUsage* UsageExp = Create<UMaterialExpressionNamedRerouteUsage>(NodePos);
 	UsageExp->Declaration = Declaration;
 	UsageExp->DeclarationGuid = Declaration->VariableGuid;
-	// SET_PROP(UsageExp, Declaration, Declaration);
-	// SET_PROP(UsageExp, DeclarationGuid, Declaration->VariableGuid);
 	return UsageExp;
 }
 
@@ -103,15 +107,12 @@ UMaterialExpressionNamedRerouteUsage* FMGFXMaterialBuilder::CreateNamedRerouteUs
 
 UMaterialExpressionNamedRerouteDeclaration* FMGFXMaterialBuilder::FindNamedReroute(const FName Name) const
 {
-	for (auto Node : MaterialGraph->Nodes)
+	for (TObjectPtr<UMaterialExpression> Expression : Material->GetExpressionCollection().Expressions)
 	{
-		if (const UMaterialGraphNode* MaterialNode = Cast<UMaterialGraphNode>(Node))
+		UMaterialExpressionNamedRerouteDeclaration* Declaration = Cast<UMaterialExpressionNamedRerouteDeclaration>(Expression);
+		if (Declaration && Declaration->Name.IsEqual(Name))
 		{
-			UMaterialExpressionNamedRerouteDeclaration* Declaration = Cast<UMaterialExpressionNamedRerouteDeclaration>(MaterialNode->MaterialExpression);
-			if (Declaration && Declaration->Name.IsEqual(Name))
-			{
-				return Declaration;
-			}
+			return Declaration;
 		}
 	}
 	return nullptr;
@@ -119,9 +120,12 @@ UMaterialExpressionNamedRerouteDeclaration* FMGFXMaterialBuilder::FindNamedRerou
 
 UMaterialExpressionComment* FMGFXMaterialBuilder::CreateComment(const FVector2D& NodePos, const FString& Text, FLinearColor Color) const
 {
-	UMaterialExpressionComment* CommentExp = MaterialEditor->CreateNewMaterialExpressionComment(NodePos, MaterialGraph);
+	UMaterialExpressionComment* CommentExp = Create<UMaterialExpressionComment>(NodePos);
+	CommentExp->SizeX = 400;
+	CommentExp->SizeY = 100;
 	SET_PROP(CommentExp, Text, Text);
 	SET_PROP(CommentExp, CommentColor, Color);
+
 	return CommentExp;
 }
 
@@ -161,4 +165,9 @@ void FMGFXMaterialBuilder::ConfigureParameter(UMaterialExpressionParameter* Para
 	SET_PROP(ParameterExp, ParameterName, ParameterName);
 	SET_PROP(ParameterExp, Group, Group);
 	SET_PROP(ParameterExp, SortPriority, SortPriority);
+}
+
+void FMGFXMaterialBuilder::RecompileMaterial()
+{
+	UMaterialEditingLibrary::RecompileMaterial(Material);
 }

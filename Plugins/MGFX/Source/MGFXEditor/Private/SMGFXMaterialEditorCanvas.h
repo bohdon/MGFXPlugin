@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Widgets/SCompoundWidget.h"
 
+class UMGFXMaterialLayer;
 class FMGFXMaterialEditor;
 class SArtboardPanel;
 class SImage;
@@ -57,4 +58,9 @@ protected:
 
 	/** The slate brush displaying the preview image. */
 	FSlateBrush PreviewImageBrush;
+
+	/** Animates the width of selection outlines. */
+	FCurveSequence SelectionOutlineAnim;
+
+	void OnLayerSelectionChanged(const TArray<UMGFXMaterialLayer*>& SelectedLayers);
 };

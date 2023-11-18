@@ -13,7 +13,6 @@
 #include "ObjectEditorUtils.h"
 #include "SMGFXMaterialEditorCanvas.h"
 #include "SMGFXMaterialEditorLayers.h"
-#include "MaterialGraph/MaterialGraph.h"
 #include "Materials/MaterialExpressionAppendVector.h"
 #include "Materials/MaterialExpressionConstant.h"
 #include "Materials/MaterialExpressionConstant2Vector.h"
@@ -25,6 +24,7 @@
 #include "Materials/MaterialExpressionScalarParameter.h"
 #include "Materials/MaterialExpressionSubtract.h"
 #include "Materials/MaterialExpressionVectorParameter.h"
+#include "Misc/TransactionObjectEvent.h"
 #include "Shapes/MGFXMaterialShape.h"
 #include "Shapes/MGFXMaterialShapeVisual.h"
 #include "UObject/PropertyAccessUtil.h"
@@ -68,6 +68,8 @@ void FMGFXMaterialEditor::InitMGFXMaterialEditor(const EToolkitMode::Type Mode,
 
 	FDetailsViewArgs DetailsViewArgs;
 	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
+	DetailsViewArgs.NotifyHook = this;
+	DetailsViewArgs.bAllowMultipleTopLevelObjects = true;
 
 	DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
 	DetailsView->SetIsPropertyVisibleDelegate(FIsPropertyVisible::CreateSP(this, &FMGFXMaterialEditor::IsDetailsPropertyVisible));
@@ -161,39 +163,47 @@ UMaterial* FMGFXMaterialEditor::GetGeneratedMaterial() const
 	return OriginalMGFXMaterial ? OriginalMGFXMaterial->GeneratedMaterial : nullptr;
 }
 
-void FMGFXMaterialEditor::RegenerateMaterial()
+IMaterialEditor* FMGFXMaterialEditor::GetOrOpenMaterialEditor(UMaterial* Material) const
 {
-	UMaterial* OriginalMaterial = GetGeneratedMaterial();
-	if (!OriginalMaterial)
-	{
-		return;
-	}
+	check(Material);
 
 	// find or open the material editor
-	IAssetEditorInstance* OpenEditor = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorForAsset(OriginalMaterial, true);
+	IAssetEditorInstance* OpenEditor = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorForAsset(Material, true);
 	IMaterialEditor* MaterialEditor = static_cast<IMaterialEditor*>(OpenEditor);
 	if (!MaterialEditor)
 	{
 		// try to open the editor
-		if (!GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(OriginalMaterial))
+		if (!GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(Material))
 		{
-			return;
+			return nullptr;
 		}
 
-		OpenEditor = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorForAsset(OriginalMaterial, true);
+		OpenEditor = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorForAsset(Material, true);
 		MaterialEditor = static_cast<IMaterialEditor*>(OpenEditor);
 
 		if (!MaterialEditor)
 		{
-			return;
+			return nullptr;
 		}
 	}
 
-	// the preview material has the graph we need to operate on
-	const UMaterial* EditorMaterial = Cast<UMaterial>(MaterialEditor->GetMaterialInterface());
-	UMaterialGraph* MaterialGraph = EditorMaterial->MaterialGraph;
+	return MaterialEditor;
+}
 
-	FMGFXMaterialBuilder Builder(MaterialEditor, MaterialGraph);
+void FMGFXMaterialEditor::RegenerateMaterial()
+{
+	UMaterial* Material = GetGeneratedMaterial();
+	if (!Material)
+	{
+		// create one?
+		return;
+	}
+
+	// TODO: close material editor, or find a way to refresh it, could just copy (manual duplicate) to the preview material?
+
+	const FScopedTransaction Transaction(LOCTEXT("RegenerateMaterial", "MGFX Material Editor: Regenerate Material"));
+
+	FMGFXMaterialBuilder Builder(Material);
 
 	Generate_DeleteAllNodes(Builder);
 	Generate_AddWarningComment(Builder);
@@ -204,10 +214,7 @@ void FMGFXMaterialEditor::RegenerateMaterial()
 	UMaterialExpressionNamedRerouteUsage* OutputUsageExp = Builder.CreateNamedRerouteUsage(FVector2D(GridSize * -16, 0), Reroute_LayersOutput);
 	Builder.ConnectProperty(OutputUsageExp, "", MP_EmissiveColor);
 
-	MaterialGraph->LinkGraphNodesFromMaterial();
-	MaterialEditor->UpdateMaterialAfterGraphChange();
-
-	ApplyMaterial(MaterialEditor);
+	Builder.RecompileMaterial();
 
 	// TODO: use events to keep this up to date
 	// update canvas artboard
@@ -226,6 +233,11 @@ TArray<UMGFXMaterialLayer*> FMGFXMaterialEditor::GetSelectedLayers() const
 
 void FMGFXMaterialEditor::SetSelectedLayers(const TArray<UMGFXMaterialLayer*>& Layers)
 {
+	if (SelectedLayers == Layers)
+	{
+		return;
+	}
+
 	SelectedLayers = Layers;
 
 	if (SelectedLayers.Num() == 1)
@@ -237,6 +249,8 @@ void FMGFXMaterialEditor::SetSelectedLayers(const TArray<UMGFXMaterialLayer*>& L
 		// default to inspecting material when nothing or multiple things are selected
 		DetailsView->SetObject(OriginalMGFXMaterial);
 	}
+
+	OnLayerSelectionChangedEvent.Broadcast(SelectedLayers);
 }
 
 void FMGFXMaterialEditor::ClearSelectedLayers()
@@ -297,6 +311,58 @@ bool FMGFXMaterialEditor::IsDetailsRowVisible(FName InRowName, FName InParentNam
 		return false;
 	}
 	return true;
+}
+
+void FMGFXMaterialEditor::NotifyPreChange(FProperty* PropertyAboutToChange)
+{
+}
+
+void FMGFXMaterialEditor::NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FProperty* PropertyThatChanged)
+{
+	if (PropertyChangedEvent.ChangeType == EPropertyChangeType::Interactive)
+	{
+		return;
+	}
+
+	// TODO: filter properties that cause regenerate
+	RegenerateMaterial();
+}
+
+bool FMGFXMaterialEditor::MatchesContext(const FTransactionContext& InContext,
+                                         const TArray<TPair<UObject*, FTransactionObjectEvent>>& TransactionObjects) const
+{
+	for (const TPair<UObject*, FTransactionObjectEvent>& TransactionObjectPair : TransactionObjects)
+	{
+		if (TransactionObjectPair.Value.HasPendingKillChange())
+		{
+			return true;
+		}
+
+		const UObject* Object = TransactionObjectPair.Key;
+		while (Object != nullptr)
+		{
+			if (Object->IsA<UMGFXMaterial>() ||
+				Object->IsA<UMGFXMaterialLayer>() ||
+				Object->IsA<UMGFXMaterialShape>() ||
+				Object->IsA<UMGFXMaterialShapeVisual>())
+			{
+				return true;
+			}
+
+			Object = Object->GetOuter();
+		}
+	}
+
+	return false;
+}
+
+void FMGFXMaterialEditor::PostUndo(bool bSuccess)
+{
+}
+
+void FMGFXMaterialEditor::PostRedo(bool bSuccess)
+{
+	PostUndo(bSuccess);
 }
 
 void FMGFXMaterialEditor::BindCommands()
@@ -363,11 +429,7 @@ TSharedRef<SDockTab> FMGFXMaterialEditor::SpawnTab_Details(const FSpawnTabArgs& 
 
 void FMGFXMaterialEditor::Generate_DeleteAllNodes(FMGFXMaterialBuilder& Builder)
 {
-	auto NodesToDelete = Builder.MaterialGraph->Nodes.FilterByPredicate([](const UEdGraphNode* Node)
-	{
-		return Node->CanUserDeleteNode();
-	});
-	Builder.MaterialEditor->DeleteNodes(NodesToDelete);
+	Builder.Material->GetExpressionCollection().Empty();
 }
 
 void FMGFXMaterialEditor::Generate_AddWarningComment(FMGFXMaterialBuilder& Builder)
@@ -467,9 +529,12 @@ void FMGFXMaterialEditor::Generate_Layers(FMGFXMaterialBuilder& Builder)
 
 	const FMGFXMaterialLayerOutputs BGOutputs(nullptr, nullptr, BGColorExp);
 
+	// create base UVs
+	UMaterialExpressionNamedRerouteDeclaration* CanvasUVsDeclaration = Builder.FindNamedReroute(Reroute_CanvasUVs);
+	check(CanvasUVsDeclaration);
+
 	// generate all layers recursively
 	check(OriginalMGFXMaterial->RootLayer);
-	UMaterialExpressionNamedRerouteDeclaration* CanvasUVsDeclaration = Builder.FindNamedReroute(Reroute_CanvasUVs);
 	const FMGFXMaterialLayerOutputs TopLayerOutputs = Generate_Layer(Builder, NodePos, OriginalMGFXMaterial->RootLayer, CanvasUVsDeclaration, BGOutputs);
 
 	NodePos.X += GridSize * 15;
@@ -514,8 +579,9 @@ FMGFXMaterialLayerOutputs FMGFXMaterialEditor::Generate_Layer(FMGFXMaterialBuild
 	FMGFXMaterialLayerOutputs ChildOutputs = LayerOutputs;
 	for (int32 Idx = Layer->Children.Num() - 1; Idx >= 0; --Idx)
 	{
-		check(LayerOutputs.UVsExp);
 		const UMGFXMaterialLayer* ChildLayer = Layer->Children[Idx];
+
+		check(LayerOutputs.UVsExp);
 		ChildOutputs = Generate_Layer(Builder, NodePos, ChildLayer, LayerOutputs.UVsExp, ChildOutputs);
 	}
 
@@ -694,7 +760,7 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_Shape(FMGFXMaterialBuilder& B
 
 		const FLinearColor Value = Input.Value;
 
-		UMaterialExpression* InputExp = Builder.MaterialEditor->CreateNewMaterialExpression(InputExpClass, NodePos + NodePosOffset, false, false);
+		UMaterialExpression* InputExp = Builder.Create(InputExpClass, NodePos + NodePosOffset);
 		check(InputExp);
 		InputExps.Add(InputExp);
 

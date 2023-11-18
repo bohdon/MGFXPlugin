@@ -2,14 +2,12 @@
 
 #pragma once
 
-class UMaterialExpressionScalarParameter;
-class IMaterialEditor;
 class UMaterialExpressionAppendVector;
 class UMaterialExpressionComponentMask;
 class UMaterialExpressionNamedRerouteDeclaration;
 class UMaterialExpressionNamedRerouteUsage;
 class UMaterialExpressionParameter;
-class UMaterialGraph;
+class UMaterialExpressionScalarParameter;
 
 
 /**
@@ -17,13 +15,10 @@ class UMaterialGraph;
  */
 struct MGFXEDITOR_API FMGFXMaterialBuilder
 {
-	FMGFXMaterialBuilder(IMaterialEditor* InMaterialEditor, UMaterialGraph* InMaterialGraph);
+	FMGFXMaterialBuilder(UMaterial* InMaterial);
 
-	/** The material editor being used to author the material. */
-	TObjectPtr<IMaterialEditor> MaterialEditor;
-
-	/** The material graph that owns the preview material being edited. */
-	TObjectPtr<UMaterialGraph> MaterialGraph;
+	/** The material being edited. */
+	TObjectPtr<UMaterial> Material;
 
 	/** Create a new material expression. */
 	UMaterialExpression* Create(TSubclassOf<UMaterialExpression> ExpressionClass, const FVector2D& NodePos) const;
@@ -34,7 +29,7 @@ struct MGFXEDITOR_API FMGFXMaterialBuilder
 	{
 		static_assert(TPointerIsConvertibleFromTo<T, UMaterialExpression>::Value, "'T' template parameter to Create must be derived from UMaterialExpression");
 
-		return Cast<T>(Create(T::StaticClass(), NodePos));
+		return CastChecked<T>(Create(T::StaticClass(), NodePos));
 	}
 
 	UMaterialExpressionComment* CreateComment(const FVector2D& NodePos, const FString& Text, FLinearColor Color = FLinearColor(0.02f, 0.02f, 0.02f)) const;
@@ -84,4 +79,6 @@ struct MGFXEDITOR_API FMGFXMaterialBuilder
 
 	/** Set the name, group, and sort priority of a parameter. */
 	void ConfigureParameter(UMaterialExpressionParameter* ParameterExp, FName ParameterName, FName Group, int32 SortPriority = 32) const;
+
+	void RecompileMaterial();
 };
