@@ -19,7 +19,7 @@ class MGFXEDITOR_API UAssetDefinition_MGFXMaterial : public UAssetDefinitionDefa
 public:
 	virtual FText GetAssetDisplayName() const override;
 	virtual TSoftClassPtr<UObject> GetAssetClass() const override { return UMGFXMaterial::StaticClass(); }
-	virtual FLinearColor GetAssetColor() const override { return FLinearColor(FColor(32, 81, 32)); }
+	virtual FLinearColor GetAssetColor() const override { return FLinearColor(FColor(32, 121, 151)); }
 
 	virtual TConstArrayView<FAssetCategoryPath> GetAssetCategories() const override
 	{
