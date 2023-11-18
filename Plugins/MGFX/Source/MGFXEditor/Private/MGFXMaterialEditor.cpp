@@ -3,7 +3,9 @@
 
 #include "MGFXMaterialEditor.h"
 
+#include "AssetToolsModule.h"
 #include "IMaterialEditor.h"
+#include "MaterialDomain.h"
 #include "MaterialEditorActions.h"
 #include "MGFXEditorModule.h"
 #include "MGFXMaterial.h"
@@ -13,6 +15,7 @@
 #include "ObjectEditorUtils.h"
 #include "SMGFXMaterialEditorCanvas.h"
 #include "SMGFXMaterialEditorLayers.h"
+#include "Factories/MaterialFactoryNew.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Materials/MaterialExpressionAppendVector.h"
 #include "Materials/MaterialExpressionConstant.h"
@@ -59,7 +62,7 @@ void FMGFXMaterialEditor::InitMGFXMaterialEditor(const EToolkitMode::Type Mode,
 {
 	check(InMGFXMaterial);
 
-	OriginalMGFXMaterial = InMGFXMaterial;
+	MGFXMaterial = InMGFXMaterial;
 
 	FMGFXMaterialEditorCommands::Register();
 	BindCommands();
@@ -70,12 +73,12 @@ void FMGFXMaterialEditor::InitMGFXMaterialEditor(const EToolkitMode::Type Mode,
 	FDetailsViewArgs DetailsViewArgs;
 	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
 	DetailsViewArgs.NotifyHook = this;
-	DetailsViewArgs.bAllowMultipleTopLevelObjects = true;
+	// DetailsViewArgs.bAllowMultipleTopLevelObjects = true;
 
 	DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
 	DetailsView->SetIsPropertyVisibleDelegate(FIsPropertyVisible::CreateSP(this, &FMGFXMaterialEditor::IsDetailsPropertyVisible));
 	DetailsView->SetIsCustomRowVisibleDelegate(FIsCustomRowVisible::CreateSP(this, &FMGFXMaterialEditor::IsDetailsRowVisible));
-	DetailsView->SetObject(OriginalMGFXMaterial);
+	DetailsView->SetObject(MGFXMaterial);
 
 	const TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_MGFXMaterialEditor_v0.1")
 		->AddArea(
@@ -110,7 +113,7 @@ void FMGFXMaterialEditor::InitMGFXMaterialEditor(const EToolkitMode::Type Mode,
 	constexpr bool bCreateDefaultToolbar = true;
 	InitAssetEditor(Mode, InitToolkitHost, FMGFXEditorModule::MGFXMaterialEditorAppIdentifier, StandaloneDefaultLayout,
 	                bCreateDefaultStandaloneMenu, bCreateDefaultToolbar,
-	                OriginalMGFXMaterial);
+	                MGFXMaterial);
 
 	ExtendToolbar();
 	RegenerateMenusAndToolbars();
@@ -161,7 +164,7 @@ void FMGFXMaterialEditor::RegisterTabSpawners(const TSharedRef<FTabManager>& InT
 
 UMaterial* FMGFXMaterialEditor::GetGeneratedMaterial() const
 {
-	return OriginalMGFXMaterial ? OriginalMGFXMaterial->GeneratedMaterial : nullptr;
+	return MGFXMaterial ? MGFXMaterial->Material : nullptr;
 }
 
 IMaterialEditor* FMGFXMaterialEditor::GetOrOpenMaterialEditor(UMaterial* Material) const
@@ -196,13 +199,22 @@ void FMGFXMaterialEditor::RegenerateMaterial()
 	UMaterial* Material = GetGeneratedMaterial();
 	if (!Material)
 	{
-		// create one?
-		return;
+		Material = CreateMaterialAsset();
+
+		if (!Material)
+		{
+			UE_LOG(LogMGFXEditor, Error, TEXT("Failed to create Material for %s"), *GetNameSafe(MGFXMaterial));
+			return;
+		}
 	}
 
 	// TODO: close material editor, or find a way to refresh it, could just copy (manual duplicate) to the preview material?
 
 	const FScopedTransaction Transaction(LOCTEXT("RegenerateMaterial", "MGFX Material Editor: Regenerate Material"));
+
+	// set material properties
+	Material->MaterialDomain = MGFXMaterial->MaterialDomain;
+	Material->BlendMode = MGFXMaterial->BlendMode;
 
 	FMGFXMaterialBuilder Builder(Material);
 
@@ -219,12 +231,34 @@ void FMGFXMaterialEditor::RegenerateMaterial()
 
 	// TODO: use events to keep this up to date
 	// update canvas artboard
-	MGFXMaterialEditorCanvas->UpdateArtboardSize();
+	CanvasWidget->UpdateArtboardSize();
+}
+
+UMaterial* FMGFXMaterialEditor::CreateMaterialAsset()
+{
+	if (!MGFXMaterial->Material)
+	{
+		const FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
+
+		const FString MGFXMaterialPath = MGFXMaterial->GetPackage()->GetPathName();
+		const FString PackagePath = FPackageName::GetLongPackagePath(MGFXMaterialPath);
+		const FString AssetName = FPackageName::GetShortName(MGFXMaterialPath) + TEXT("_M");
+
+		UMaterialFactoryNew* MaterialFactory = NewObject<UMaterialFactoryNew>();
+		UObject* NewMaterial = AssetToolsModule.Get().CreateAsset(AssetName, PackagePath, UMaterial::StaticClass(), MaterialFactory);
+
+		if (NewMaterial)
+		{
+			MGFXMaterial->Material = Cast<UMaterial>(NewMaterial);
+		}
+	}
+
+	return MGFXMaterial->Material;
 }
 
 FVector2D FMGFXMaterialEditor::GetCanvasSize() const
 {
-	return FVector2D(OriginalMGFXMaterial->BaseCanvasSize);
+	return FVector2D(MGFXMaterial->BaseCanvasSize);
 }
 
 TArray<TObjectPtr<UMGFXMaterialLayer>> FMGFXMaterialEditor::GetSelectedLayers() const
@@ -241,14 +275,16 @@ void FMGFXMaterialEditor::SetSelectedLayers(const TArray<UMGFXMaterialLayer*>& L
 
 	SelectedLayers = Layers;
 
-	if (SelectedLayers.Num() == 1)
+	if (SelectedLayers.IsEmpty())
 	{
-		DetailsView->SetObject(SelectedLayers[0]);
+		// default to inspecting material when nothing or multiple things are selected
+		DetailsView->SetObject(MGFXMaterial);
 	}
 	else
 	{
-		// default to inspecting material when nothing or multiple things are selected
-		DetailsView->SetObject(OriginalMGFXMaterial);
+		TArray<UObject*> Objects;
+		Algo::Transform(SelectedLayers, Objects, [](UMGFXMaterialLayer* Layer) { return Layer; });
+		DetailsView->SetObjects(Objects);
 	}
 
 	OnLayerSelectionChangedEvent.Broadcast(SelectedLayers);
@@ -259,18 +295,11 @@ void FMGFXMaterialEditor::ClearSelectedLayers()
 	SetSelectedLayers(TArray<UMGFXMaterialLayer*>());
 }
 
-void FMGFXMaterialEditor::OnLayerSelectionChanged(UMGFXMaterialLayer* Layer)
+void FMGFXMaterialEditor::OnLayerSelectionChanged(TArray<TObjectPtr<UMGFXMaterialLayer>> TreeSelectedLayers)
 {
 	check(DetailsView.IsValid());
 
-	if (Layer)
-	{
-		SetSelectedLayers({Layer});
-	}
-	else
-	{
-		ClearSelectedLayers();
-	}
+	SetSelectedLayers(TreeSelectedLayers);
 }
 
 bool FMGFXMaterialEditor::IsDetailsPropertyVisible(const FPropertyAndParent& PropertyAndParent)
@@ -325,6 +354,18 @@ void FMGFXMaterialEditor::NotifyPostChange(const FPropertyChangedEvent& Property
 		return;
 	}
 
+	if (PropertyThatChanged)
+	{
+		const FName PropertyName = PropertyThatChanged->GetFName();
+
+		if (PropertyName == GET_MEMBER_NAME_CHECKED(UMGFXMaterial, Material))
+		{
+			// TODO: broadcast event
+			// update canvas material
+			CanvasWidget->OnMaterialChanged();
+		}
+	}
+
 	// TODO: filter properties that cause regenerate
 	RegenerateMaterial();
 }
@@ -359,6 +400,7 @@ bool FMGFXMaterialEditor::MatchesContext(const FTransactionContext& InContext,
 
 void FMGFXMaterialEditor::PostUndo(bool bSuccess)
 {
+	OnLayersChangedEvent.Broadcast();
 }
 
 void FMGFXMaterialEditor::PostRedo(bool bSuccess)
@@ -430,7 +472,7 @@ TSharedRef<SDockTab> FMGFXMaterialEditor::SpawnTab_Canvas(const FSpawnTabArgs& A
 {
 	return SNew(SDockTab)
 	[
-		SAssignNew(MGFXMaterialEditorCanvas, SMGFXMaterialEditorCanvas)
+		SAssignNew(CanvasWidget, SMGFXMaterialEditorCanvas)
 		.MGFXMaterialEditor(SharedThis(this))
 	];
 }
@@ -461,7 +503,7 @@ void FMGFXMaterialEditor::Generate_DeleteAllNodes(FMGFXMaterialBuilder& Builder)
 void FMGFXMaterialEditor::Generate_AddWarningComment(FMGFXMaterialBuilder& Builder)
 {
 	const FLinearColor CommentColor = FLinearColor(0.06f, 0.02f, 0.02f);
-	const FString Text = FString::Printf(TEXT("Generated by %s\nDo not edit manually"), *GetNameSafe(OriginalMGFXMaterial));
+	const FString Text = FString::Printf(TEXT("Generated by %s\nDo not edit manually"), *GetNameSafe(MGFXMaterial));
 
 	FVector2D NodePos(GridSize * -20, GridSize * -10);
 	UMaterialExpressionComment* CommentExp = Builder.CreateComment(NodePos, Text, CommentColor);
@@ -476,7 +518,7 @@ void FMGFXMaterialEditor::Generate_AddUVsBoilerplate(FMGFXMaterialBuilder& Build
 
 	// create CanvasWidth and CanvasHeight scalar parameters
 	const FName ParamGroup("Canvas");
-	auto* CanvasAppendExp = Generate_Vector2Parameter(Builder, NodePos, OriginalMGFXMaterial->BaseCanvasSize,
+	auto* CanvasAppendExp = Generate_Vector2Parameter(Builder, NodePos, MGFXMaterial->BaseCanvasSize,
 	                                                  FString(), ParamGroup, 0, "CanvasWidth", "CanvasHeight");
 
 	NodePos.X += GridSize * 15;
@@ -504,7 +546,7 @@ void FMGFXMaterialEditor::Generate_AddUVsBoilerplate(FMGFXMaterialBuilder& Build
 	// compute common filter width to use for all shapes based on canvas resolution
 	UMaterialExpression* FilterWidthExp = nullptr;
 
-	if (OriginalMGFXMaterial->bComputeFilterWidth)
+	if (MGFXMaterial->bComputeFilterWidth)
 	{
 		UMaterialExpressionMaterialFunctionCall* FilterWidthFuncExp = Builder.CreateFunction(
 			NodePos, TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_FilterWidth.MF_MGFX_FilterWidth")));
@@ -513,11 +555,11 @@ void FMGFXMaterialEditor::Generate_AddUVsBoilerplate(FMGFXMaterialBuilder& Build
 		NodePos.X += GridSize * 15;
 
 		// apply filter width scale if not 1x
-		if (!FMath::IsNearlyEqual(OriginalMGFXMaterial->FilterWidthScale, 1.f))
+		if (!FMath::IsNearlyEqual(MGFXMaterial->FilterWidthScale, 1.f))
 		{
 			UMaterialExpressionMultiply* FilterWidthScaleExp = Builder.Create<UMaterialExpressionMultiply>(NodePos);
 			Builder.Connect(FilterWidthFuncExp, "", FilterWidthScaleExp, "");
-			SET_PROP(FilterWidthScaleExp, ConstB, OriginalMGFXMaterial->FilterWidthScale);
+			SET_PROP(FilterWidthScaleExp, ConstB, MGFXMaterial->FilterWidthScale);
 
 			NodePos.X += GridSize * 15;
 
@@ -531,7 +573,7 @@ void FMGFXMaterialEditor::Generate_AddUVsBoilerplate(FMGFXMaterialBuilder& Build
 	else
 	{
 		UMaterialExpressionConstant* FilterWidthConstExp = Builder.Create<UMaterialExpressionConstant>(NodePos);
-		SET_PROP(FilterWidthConstExp, R, OriginalMGFXMaterial->FilterWidthScale);
+		SET_PROP(FilterWidthConstExp, R, MGFXMaterial->FilterWidthScale);
 
 		NodePos.X += GridSize * 15;
 
@@ -560,14 +602,19 @@ void FMGFXMaterialEditor::Generate_Layers(FMGFXMaterialBuilder& Builder)
 	check(CanvasUVsDeclaration);
 
 	// generate all layers recursively
-	check(OriginalMGFXMaterial->RootLayer);
-	const FMGFXMaterialLayerOutputs TopLayerOutputs = Generate_Layer(Builder, NodePos, OriginalMGFXMaterial->RootLayer, CanvasUVsDeclaration, BGOutputs);
+	FMGFXMaterialLayerOutputs RootLayerOutputs = BGOutputs;
+	for (int32 Idx = MGFXMaterial->RootLayers.Num() - 1; Idx >= 0; --Idx)
+	{
+		const UMGFXMaterialLayer* ChildLayer = MGFXMaterial->RootLayers[Idx];
+
+		RootLayerOutputs = Generate_Layer(Builder, NodePos, ChildLayer, CanvasUVsDeclaration, RootLayerOutputs);
+	}
 
 	NodePos.X += GridSize * 15;
 
 	// connect to layers output reroute
 	UMaterialExpressionNamedRerouteDeclaration* OutputRerouteExp = Builder.CreateNamedReroute(NodePos, Reroute_LayersOutput, RGBARerouteColor);
-	Builder.Connect(TopLayerOutputs.VisualExp, "", OutputRerouteExp, "");
+	Builder.Connect(RootLayerOutputs.VisualExp, "", OutputRerouteExp, "");
 }
 
 FMGFXMaterialLayerOutputs FMGFXMaterialEditor::Generate_Layer(FMGFXMaterialBuilder& Builder, FVector2D& NodePos, const UMGFXMaterialLayer* Layer,
@@ -592,7 +639,7 @@ FMGFXMaterialLayerOutputs FMGFXMaterialEditor::Generate_Layer(FMGFXMaterialBuild
 	NodePos.X += GridSize * 15;
 
 	// apply layer transform (if needed), and store as a reroute for children (if needed)
-	const bool bCreateReroute = Layer->HasChildren();
+	const bool bCreateReroute = Layer->HasLayers();
 	UMaterialExpression* UVsExp = Generate_TransformUVs(Builder, NodePos, Layer->Transform, ParentUVsExp, ParamPrefix, ParamGroup, bCreateReroute);
 
 	if (bCreateReroute)
@@ -603,9 +650,9 @@ FMGFXMaterialLayerOutputs FMGFXMaterialEditor::Generate_Layer(FMGFXMaterialBuild
 
 	// generate children layers bottom to top
 	FMGFXMaterialLayerOutputs ChildOutputs = LayerOutputs;
-	for (int32 Idx = Layer->NumChildren() - 1; Idx >= 0; --Idx)
+	for (int32 Idx = Layer->NumLayers() - 1; Idx >= 0; --Idx)
 	{
-		const UMGFXMaterialLayer* ChildLayer = Layer->GetChild(Idx);
+		const UMGFXMaterialLayer* ChildLayer = Layer->GetLayer(Idx);
 
 		check(LayerOutputs.UVsExp);
 		ChildOutputs = Generate_Layer(Builder, NodePos, ChildLayer, LayerOutputs.UVsExp, ChildOutputs);
@@ -623,7 +670,7 @@ FMGFXMaterialLayerOutputs FMGFXMaterialEditor::Generate_Layer(FMGFXMaterialBuild
 	}
 
 	// merge this layer with its children
-	if (Layer->HasChildren())
+	if (Layer->HasLayers())
 	{
 		if (ChildOutputs.VisualExp && ChildOutputs.VisualExp != LayerOutputs.VisualExp)
 		{
@@ -676,7 +723,7 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_TransformUVs(FMGFXMaterialBui
 	// temporary offset used to simplify next node positioning
 	FVector2D NodePosOffset = FVector2D::Zero();
 
-	const bool bNoOptimization = Transform.bAnimatable || OriginalMGFXMaterial->bAllAnimatable;
+	const bool bNoOptimization = Transform.bAnimatable || MGFXMaterial->bAllAnimatable;
 
 	// apply translate
 	if (bNoOptimization || !Transform.Location.IsZero())
@@ -1037,39 +1084,34 @@ void FMGFXMaterialEditor::ApplyMaterial(IMaterialEditor* MaterialEditor)
 
 void FMGFXMaterialEditor::DeleteSelectedLayers()
 {
-	TArray<UMGFXMaterialLayer*> LayersToDelete = SelectedLayers.FilterByPredicate([](const UMGFXMaterialLayer* Layer)
-	{
-		return Layer->GetParent() != nullptr;
-	});
+	TArray<UMGFXMaterialLayer*> LayersToDelete = SelectedLayers;
 
 	ClearSelectedLayers();
 
 	{
 		FScopedTransaction Transaction(LOCTEXT("DeleteLayer", "Delete Layer"));
-		OriginalMGFXMaterial->Modify();
+		MGFXMaterial->Modify();
 
 		for (UMGFXMaterialLayer* Layer : LayersToDelete)
 		{
-			// don't delete the root layer
-			if (!Layer->GetParent())
+			if (Layer->GetParentLayer())
 			{
-				continue;
+				Layer->GetParentLayer()->RemoveLayer(Layer);
 			}
-
-			Layer->GetParent()->RemoveChild(Layer);
+			else
+			{
+				MGFXMaterial->RemoveLayer(Layer);
+			}
 		}
 	}
 
+	RegenerateMaterial();
 	OnLayersChangedEvent.Broadcast();
 }
 
 bool FMGFXMaterialEditor::CanDeleteSelectedLayers()
 {
-	const TArray<UMGFXMaterialLayer*> LayersToDelete = SelectedLayers.FilterByPredicate([](const UMGFXMaterialLayer* Layer)
-	{
-		return Layer->GetParent() != nullptr;
-	});
-	return !LayersToDelete.IsEmpty();
+	return !SelectedLayers.IsEmpty();
 }
 
 void FMGFXMaterialEditor::CopySelectedLayers()
@@ -1116,6 +1158,26 @@ void FMGFXMaterialEditor::DuplicateSelectedLayers()
 bool FMGFXMaterialEditor::CanDuplicateSelectedLayers()
 {
 	return !SelectedLayers.IsEmpty();
+}
+
+FString FMGFXMaterialEditor::MakeUniqueLayerName(const FString& Name, const UMGFXMaterial* InMaterial)
+{
+	TArray<TObjectPtr<UMGFXMaterialLayer>> AllLayers;
+	InMaterial->GetAllLayers(AllLayers);
+
+	FString NewName = Name;
+
+	int32 Number = 1;
+	while (AllLayers.FindByPredicate([NewName](const TObjectPtr<UMGFXMaterialLayer> Layer)
+	{
+		return Layer->Name.Equals(NewName);
+	}))
+	{
+		NewName = Name + FString::FromInt(Number);
+		++Number;
+	}
+
+	return NewName;
 }
 
 

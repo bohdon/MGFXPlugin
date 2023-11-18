@@ -70,9 +70,14 @@ void SMGFXMaterialEditorCanvas::UpdateArtboardSize()
 	}
 }
 
+void SMGFXMaterialEditorCanvas::OnMaterialChanged()
+{
+	PreviewImageBrush.SetResourceObject(MGFXMaterialEditor.Pin()->GetGeneratedMaterial());
+}
+
 UMGFXMaterial* SMGFXMaterialEditorCanvas::GetMGFXMaterial() const
 {
-	return MGFXMaterialEditor.Pin()->GetOriginalMGFXMaterial();
+	return MGFXMaterialEditor.Pin()->GetMGFXMaterial();
 }
 
 int32 SMGFXMaterialEditorCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect,

@@ -4,8 +4,6 @@
 #include "SMGFXMaterialEditorLayerTreeView.h"
 
 #include "MGFXEditorStyle.h"
-#include "MGFXMaterial.h"
-#include "MGFXMaterialEditor.h"
 #include "MGFXMaterialLayer.h"
 #include "SlateOptMacros.h"
 #include "SMGFXMaterialEditorLayers.h"
@@ -163,15 +161,15 @@ TSharedRef<ITableRow> SMGFXMaterialEditorLayerTreeView::MakeTableRowWidget(TObje
 
 void SMGFXMaterialEditorLayerTreeView::HandleGetChildrenForTree(TObjectPtr<UMGFXMaterialLayer> InItem, TArray<TObjectPtr<UMGFXMaterialLayer>>& OutChildren)
 {
-	OutChildren = InItem->GetChildren();
+	OutChildren = InItem->GetLayers();
 }
 
 void SMGFXMaterialEditorLayerTreeView::SetExpansionRecursive(TObjectPtr<UMGFXMaterialLayer> TreeItem, bool bShouldBeExpanded)
 {
 	SetItemExpansion(TreeItem, bShouldBeExpanded);
 
-	for (int32 Idx = 0; Idx < TreeItem->NumChildren(); ++Idx)
+	for (int32 Idx = 0; Idx < TreeItem->NumLayers(); ++Idx)
 	{
-		SetExpansionRecursive(TreeItem->GetChild(Idx), bShouldBeExpanded);
+		SetExpansionRecursive(TreeItem->GetLayer(Idx), bShouldBeExpanded);
 	}
 }

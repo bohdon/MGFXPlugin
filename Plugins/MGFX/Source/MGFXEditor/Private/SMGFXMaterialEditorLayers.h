@@ -7,6 +7,7 @@
 
 class FMGFXMaterialEditor;
 class SMGFXMaterialEditorLayerTreeView;
+class UMGFXMaterial;
 class UMGFXMaterialLayer;
 
 
@@ -16,7 +17,7 @@ class UMGFXMaterialLayer;
 class MGFXEDITOR_API SMGFXMaterialEditorLayers : public SCompoundWidget
 {
 public:
-	DECLARE_DELEGATE_OneParam(FOnSelectionChanged, UMGFXMaterialLayer* /*TreeItem*/);
+	DECLARE_DELEGATE_OneParam(FOnSelectionChanged, TArray<TObjectPtr<UMGFXMaterialLayer>> /*SelectedLayers*/);
 
 public:
 	SLATE_BEGIN_ARGS(SMGFXMaterialEditorLayers)
@@ -49,11 +50,12 @@ public:
 	bool CanRename();
 
 protected:
+	/** Weak pointer to the material being edited. */
+	TWeakObjectPtr<UMGFXMaterial> MGFXMaterial;
+
 	TSharedPtr<SMGFXMaterialEditorLayerTreeView> TreeView;
 
 	FOnSelectionChanged OnSelectionChanged;
-
-	TArray<TObjectPtr<UMGFXMaterialLayer>> TreeRootItems;
 
 	/** Commands specific to the layers view. */
 	TSharedPtr<FUICommandList> CommandList;

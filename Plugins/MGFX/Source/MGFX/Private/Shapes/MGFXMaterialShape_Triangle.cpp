@@ -15,6 +15,12 @@ UMGFXMaterialShape_Triangle::UMGFXMaterialShape_Triangle()
 	Visuals.Add(CreateDefaultSubobject<UMGFXMaterialShapeFill>(TEXT("DefaultFill")));
 }
 
+FBox2D UMGFXMaterialShape_Triangle::GetBounds() const
+{
+	const FVector2D HalfSize = FVector2D(Size * 0.5f);
+	return FBox2D(-HalfSize, HalfSize);
+}
+
 #if WITH_EDITORONLY_DATA
 TArray<FMGFXMaterialShapeInput> UMGFXMaterialShape_Triangle::GetInputs() const
 {

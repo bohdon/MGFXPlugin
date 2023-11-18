@@ -38,6 +38,9 @@ public:
 	/** Update the artboard size to match the material. */
 	void UpdateArtboardSize();
 
+	/** Called when the material asset has been set or changed. */
+	void OnMaterialChanged();
+
 	/** Weak pointer to the owning material editor. */
 	TWeakPtr<FMGFXMaterialEditor> MGFXMaterialEditor;
 

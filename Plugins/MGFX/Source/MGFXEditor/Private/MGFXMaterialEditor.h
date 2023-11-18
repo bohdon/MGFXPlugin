@@ -55,17 +55,19 @@ public:
 	virtual FLinearColor GetWorldCentricTabColorScale() const override;
 	virtual void RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager) override;
 
+	/** Return the MGFX Material asset being edited. */
+	UMGFXMaterial* GetMGFXMaterial() const { return MGFXMaterial; }
 
-	/** Return the generated material asset being edited. */
-	UMGFXMaterial* GetOriginalMGFXMaterial() const { return OriginalMGFXMaterial; }
-
-	/** Return the generated material asset being edited. */
+	/** Return the material asset being generated. */
 	UMaterial* GetGeneratedMaterial() const;
 
 	IMaterialEditor* GetOrOpenMaterialEditor(UMaterial* Material) const;
 
 	/** Fully regenerate the target material. */
 	void RegenerateMaterial();
+
+	/** Create a new material asset for the MGFX material. */
+	UMaterial* CreateMaterialAsset();
 
 	FVector2D GetCanvasSize() const;
 
@@ -75,7 +77,7 @@ public:
 
 	void ClearSelectedLayers();
 
-	void OnLayerSelectionChanged(UMGFXMaterialLayer* Layer);
+	void OnLayerSelectionChanged(TArray<TObjectPtr<UMGFXMaterialLayer>> TreeSelectedLayers);
 
 	bool IsDetailsPropertyVisible(const FPropertyAndParent& PropertyAndParent);
 
@@ -102,14 +104,14 @@ public:
 	FLayersChangedDelegate OnLayersChangedEvent;
 
 private:
-	TSharedPtr<SMGFXMaterialEditorCanvas> MGFXMaterialEditorCanvas;
+	TSharedPtr<SMGFXMaterialEditorCanvas> CanvasWidget;
 
 	TSharedPtr<SMGFXMaterialEditorLayers> LayersWidget;
 
 	TSharedPtr<IDetailsView> DetailsView;
 
-	/** The original MGFX material asset being edited. */
-	TObjectPtr<UMGFXMaterial> OriginalMGFXMaterial;
+	/** The MGFX material asset being edited. */
+	TObjectPtr<UMGFXMaterial> MGFXMaterial;
 
 	/** The currently selected layers. */
 	TArray<TObjectPtr<UMGFXMaterialLayer>> SelectedLayers;
@@ -214,4 +216,6 @@ public:
 	static const FName Reroute_FilterWidth;
 	static const FName Reroute_LayersOutput;
 	static const int32 GridSize;
+
+	static FString MakeUniqueLayerName(const FString& Name, const UMGFXMaterial* InMaterial);
 };

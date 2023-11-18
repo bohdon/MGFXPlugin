@@ -7,14 +7,58 @@
 #include "UObject/Object.h"
 #include "MGFXMaterialLayer.generated.h"
 
+class UMGFXMaterialLayer;
 class UMGFXMaterialShape;
+
+
+UINTERFACE(Meta = (CannotImplementInterfaceInBlueprint))
+class MGFX_API UMGFXMaterialLayerParentInterface : public UInterface
+{
+	GENERATED_BODY()
+};
+
+/** Interface for an object that can contain UMGFXMaterialLayers. */
+class MGFX_API IMGFXMaterialLayerParentInterface
+{
+	GENERATED_BODY()
+
+public:
+	/** Add a new child layer. */
+	virtual void AddLayer(UMGFXMaterialLayer* Child, int32 Index = INDEX_NONE);
+
+	/** Remove a child layer, and clear its parent. */
+	virtual void RemoveLayer(UMGFXMaterialLayer* Child);
+
+	/** Reorder a child layer. */
+	virtual void ReorderLayer(UMGFXMaterialLayer* Child, int32 NewIndex);
+
+	/** Return true if this object has a child layer. */
+	virtual bool HasLayer(const UMGFXMaterialLayer* Child) const;
+
+	/** Return the index of a child layer. */
+	virtual int32 GetLayerIndex(const UMGFXMaterialLayer* Child) const;
+
+	virtual int32 NumLayers() const;
+
+	virtual bool HasLayers() const;
+
+	virtual UMGFXMaterialLayer* GetLayer(int32 Index) const;
+
+	/** Return all child layers. */
+	virtual const TArray<TObjectPtr<UMGFXMaterialLayer>>& GetLayers() const = 0;
+
+protected:
+	/** Return the layers array used to contain. */
+	virtual TArray<TObjectPtr<UMGFXMaterialLayer>>& GetMutableLayers() = 0;
+};
 
 
 /**
  * A layer within a UMGFXMaterial.
  */
 UCLASS(EditInlineNew, DefaultToInstanced)
-class MGFX_API UMGFXMaterialLayer : public UObject
+class MGFX_API UMGFXMaterialLayer : public UObject,
+                                    public IMGFXMaterialLayerParentInterface
 {
 	GENERATED_BODY()
 
@@ -49,30 +93,17 @@ public:
 	/** Return the local bounds of this layer's shape. */
 	FBox2D GetBounds() const;
 
-	/** Add a new child layer. */
-	void AddChild(UMGFXMaterialLayer* Child, int32 Index = INDEX_NONE);
+	UMGFXMaterialLayer* GetParentLayer() const { return Parent; }
 
-	/** Remove a child layer, and clear its parent. */
-	void RemoveChild(UMGFXMaterialLayer* Child);
-
-	/** Reorder a child layer. */
-	void ReorderChild(UMGFXMaterialLayer* Child, int32 NewIndex);
-
-	const TArray<UMGFXMaterialLayer*>& GetChildren() const { return Children; }
-
-	int32 NumChildren() const { return Children.Num(); }
-
-	bool HasChildren() const { return !Children.IsEmpty(); }
-
-	UMGFXMaterialLayer* GetChild(int32 Index) const;
-
-	UMGFXMaterialLayer* GetParent() const { return Parent; }
-
-	void SetParent(UMGFXMaterialLayer* NewParent);
-
-	int32 GetIndexInParent() const;
+	void SetParentLayer(UMGFXMaterialLayer* NewParent);
 
 	virtual void PostLoad() override;
+
+	void GetAllLayers(TArray<TObjectPtr<UMGFXMaterialLayer>>& OutLayers) const;
+
+	// IMGFXMaterialLayerParentInterface
+	virtual const TArray<TObjectPtr<UMGFXMaterialLayer>>& GetLayers() const override { return Children; }
+	virtual TArray<TObjectPtr<UMGFXMaterialLayer>>& GetMutableLayers() override { return Children; }
 
 protected:
 	UPROPERTY()

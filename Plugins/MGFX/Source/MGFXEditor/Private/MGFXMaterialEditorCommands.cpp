@@ -7,7 +7,7 @@
 
 void FMGFXMaterialEditorCommands::RegisterCommands()
 {
-	UI_COMMAND(RegenerateMaterial, "Regenerate Material", "Regenerate the target material", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(RegenerateMaterial, "Regenerate", "Regenerate the target material", EUserInterfaceActionType::Button, FInputChord());
 }
 
 #undef LOCTEXT_NAMESPACE

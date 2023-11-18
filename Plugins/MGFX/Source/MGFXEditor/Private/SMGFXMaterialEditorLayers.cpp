@@ -25,6 +25,8 @@ void SMGFXMaterialEditorLayers::Construct(const FArguments& InArgs)
 	MGFXMaterialEditor = InArgs._MGFXMaterialEditor;
 	OnSelectionChanged = InArgs._OnSelectionChanged;
 
+	MGFXMaterial = MGFXMaterialEditor.Pin()->GetMGFXMaterial();
+
 	MGFXMaterialEditor.Pin()->OnLayersChangedEvent.AddRaw(this, &SMGFXMaterialEditorLayers::OnLayersChanged);
 	MGFXMaterialEditor.Pin()->OnLayerSelectionChangedEvent.AddRaw(this, &SMGFXMaterialEditorLayers::OnEditorLayerSelectionChanged);
 
@@ -34,9 +36,6 @@ void SMGFXMaterialEditorLayers::Construct(const FArguments& InArgs)
 		FGenericCommands::Get().Rename,
 		FExecuteAction::CreateSP(this, &SMGFXMaterialEditorLayers::BeginRename),
 		FCanExecuteAction::CreateSP(this, &SMGFXMaterialEditorLayers::CanRename));
-
-	const UMGFXMaterial* MGFXMaterial = MGFXMaterialEditor.Pin()->GetOriginalMGFXMaterial();
-	TreeRootItems.Add(MGFXMaterial->RootLayer);
 
 	ChildSlot
 	[
@@ -64,7 +63,7 @@ void SMGFXMaterialEditorLayers::Construct(const FArguments& InArgs)
 		+ SVerticalBox::Slot()
 		[
 			SAssignNew(TreeView, SMGFXMaterialEditorLayerTreeView, SharedThis(this))
-			.TreeItemsSource(&TreeRootItems)
+			.TreeItemsSource(&MGFXMaterial->RootLayers)
 			.OnSelectionChanged(this, &SMGFXMaterialEditorLayers::OnTreeSelectionChanged)
 			.OnContextMenuOpening(this, &SMGFXMaterialEditorLayers::OnTreeContextMenuOpening)
 			.OnSetExpansionRecursive(this, &SMGFXMaterialEditorLayers::OnSetExpansionRecursive)
@@ -72,7 +71,7 @@ void SMGFXMaterialEditorLayers::Construct(const FArguments& InArgs)
 	];
 
 	// start with all layers expanded
-	for (const TObjectPtr<UMGFXMaterialLayer> RootItem : TreeRootItems)
+	for (const TObjectPtr<UMGFXMaterialLayer> RootItem : MGFXMaterial->RootLayers)
 	{
 		TreeView->SetExpansionRecursive(RootItem, true);
 	}
@@ -85,9 +84,12 @@ void SMGFXMaterialEditorLayers::AddNewLayerAboveSelection()
 	{
 		for (const UMGFXMaterialLayer* Layer : SelectedLayers)
 		{
-			const int32 LayerIndex = Layer->GetIndexInParent();
 			// even if there's no parent, we can add as a root layer
-			UMGFXMaterialLayer* ParentLayer = Layer->GetParent();
+			UMGFXMaterialLayer* ParentLayer = Layer->GetParentLayer();
+
+			UObject* ParentObject = ParentLayer ? Cast<UObject>(ParentLayer) : MGFXMaterial.Get();
+			const IMGFXMaterialLayerParentInterface* Container = CastChecked<IMGFXMaterialLayerParentInterface>(ParentObject);
+			const int32 LayerIndex = Container->GetLayerIndex(Layer);
 
 			// add layers at the same index, i.e. right on top
 			AddNewLayer(ParentLayer, LayerIndex);
@@ -95,59 +97,62 @@ void SMGFXMaterialEditorLayers::AddNewLayerAboveSelection()
 	}
 	else
 	{
-		// add to root layer
-		AddNewLayer(MGFXMaterialEditor.Pin()->GetOriginalMGFXMaterial()->RootLayer, 0);
+		// add as root layer
+		AddNewLayer(nullptr, 0);
 	}
 }
 
 void SMGFXMaterialEditorLayers::AddNewLayer(UMGFXMaterialLayer* Parent, int32 Index)
 {
-	UMGFXMaterial* MGFXMaterial = MGFXMaterialEditor.Pin()->GetOriginalMGFXMaterial();
+	// create layer
+	UMGFXMaterialLayer* NewLayer = NewObject<UMGFXMaterialLayer>(MGFXMaterial.Get(), NAME_None, RF_Public | RF_Transactional);
+	NewLayer->Name = FMGFXMaterialEditor::MakeUniqueLayerName(NewLayer->Name, MGFXMaterial.Get());
 
-	UMGFXMaterialLayer* NewLayer = NewObject<UMGFXMaterialLayer>(MGFXMaterial, NAME_None, RF_Public | RF_Transactional);
+	// then add it to the given parent
 	AddLayer(NewLayer, Parent, Index);
+
+	TreeView->SetSelection(NewLayer);
 }
 
 void SMGFXMaterialEditorLayers::AddLayer(UMGFXMaterialLayer* NewLayer, UMGFXMaterialLayer* Parent, int32 Index)
 {
-	// TODO: add to root layers, don't require a parent
-	if (!Parent)
+	UObject* ParentObject = Parent ? Cast<UObject>(Parent) : MGFXMaterial.Get();
+	IMGFXMaterialLayerParentInterface* Container = CastChecked<IMGFXMaterialLayerParentInterface>(ParentObject);
+	ParentObject->Modify();
+
+	Container->AddLayer(NewLayer, Index);
+
+	if (Parent)
 	{
-		// no parent, add to root layer
-		Parent = MGFXMaterialEditor.Pin()->GetOriginalMGFXMaterial()->RootLayer;
+		// expand parent
+		TreeView->SetItemExpansion(Parent, true);
 	}
 
-	check(!Parent->GetChildren().Contains(NewLayer));
-
-	Parent->AddChild(NewLayer, Index);
-	Parent->Modify();
-
-	// expand parent
-	TreeView->SetItemExpansion(Parent, true);
 	TreeView->RequestTreeRefresh();
 }
 
 void SMGFXMaterialEditorLayers::ReparentLayer(UMGFXMaterialLayer* Layer, UMGFXMaterialLayer* NewParent, int32 Index)
 {
-	// TODO: add to root layers, don't require a parent
-	if (!NewParent)
-	{
-		NewParent = MGFXMaterialEditor.Pin()->GetOriginalMGFXMaterial()->RootLayer;
-	}
+	UObject* ParentObject = NewParent ? Cast<UObject>(NewParent) : MGFXMaterial.Get();
+	IMGFXMaterialLayerParentInterface* Container = CastChecked<IMGFXMaterialLayerParentInterface>(ParentObject);
+	ParentObject->Modify();
 
-	if (NewParent->GetChildren().Contains(Layer))
+	if (Container->HasLayer(Layer))
 	{
 		// just reordering an existing child
-		NewParent->ReorderChild(Layer, Index);
+		Container->ReorderLayer(Layer, Index);
 	}
 	else
 	{
-		NewParent->AddChild(Layer, Index);
+		Container->AddLayer(Layer, Index);
 	}
-	NewParent->Modify();
 
-	// expand new parent
-	TreeView->SetItemExpansion(NewParent, true);
+	if (NewParent)
+	{
+		// expand parent
+		TreeView->SetItemExpansion(NewParent, true);
+	}
+
 	TreeView->RequestTreeRefresh();
 }
 
@@ -167,7 +172,7 @@ void SMGFXMaterialEditorLayers::OnTreeSelectionChanged(TObjectPtr<UMGFXMaterialL
 	// ignore incoming selection change events while broadcasting
 	bIsUpdatingSelection = true;
 
-	OnSelectionChanged.ExecuteIfBound(TreeItem);
+	OnSelectionChanged.ExecuteIfBound(TreeView->GetSelectedItems());
 
 	bIsUpdatingSelection = false;
 }
