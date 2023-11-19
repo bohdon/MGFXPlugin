@@ -3,6 +3,7 @@
 
 #include "MGFXMaterialLayer.h"
 
+#include "MGFXMaterial.h"
 #include "Shapes/MGFXMaterialShape.h"
 
 
@@ -45,8 +46,17 @@ void IMGFXMaterialLayerParentInterface::ReorderLayer(UMGFXMaterialLayer* Child, 
 
 	check(Children.Contains(Child));
 
+	const int32 OldIndex = Children.IndexOfByKey(Child);
+	if (OldIndex == NewIndex)
+	{
+		// nothing to do
+		return;
+	}
+
 	Children.Remove(Child);
-	Children.Insert(Child, NewIndex);
+
+	// insert, but at Index - 1 if we removed an item that was before the new index
+	Children.Insert(Child, OldIndex < NewIndex ? NewIndex - 1 : NewIndex);
 }
 
 bool IMGFXMaterialLayerParentInterface::HasLayer(const UMGFXMaterialLayer* Child) const
@@ -110,6 +120,19 @@ FBox2D UMGFXMaterialLayer::GetBounds() const
 	return Shape ? Shape->GetBounds() : FBox2D(ForceInit);
 }
 
+
+IMGFXMaterialLayerParentInterface* UMGFXMaterialLayer::GetParentContainer() const
+{
+	if (UMGFXMaterialLayer* ParentLayer = GetParentLayer())
+	{
+		return ParentLayer;
+	}
+	else if (UMGFXMaterial* Material = GetTypedOuter<UMGFXMaterial>())
+	{
+		return Material;
+	}
+	return nullptr;
+}
 
 void UMGFXMaterialLayer::SetParentLayer(UMGFXMaterialLayer* NewParent)
 {

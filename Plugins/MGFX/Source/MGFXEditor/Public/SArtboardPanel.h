@@ -63,7 +63,8 @@ public:
 
 	SLATE_BEGIN_ARGS(SArtboardPanel)
 			: _ZoomAmountMin(0.1f),
-			  _ZoomAmountMax(10.f)
+			  _ZoomAmountMax(10.f),
+			  _bShowArtboardBorder(true)
 		{
 		}
 

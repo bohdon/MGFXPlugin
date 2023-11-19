@@ -23,11 +23,12 @@ void SMGFXMaterialEditorLayers::Construct(const FArguments& InArgs)
 	check(InArgs._MGFXMaterialEditor.IsValid());
 
 	MGFXMaterialEditor = InArgs._MGFXMaterialEditor;
-	OnSelectionChanged = InArgs._OnSelectionChanged;
+	OnSelectionChangedEvent = InArgs._OnSelectionChanged;
+	OnLayersChangedEvent = InArgs._OnLayersChanged;
 
 	MGFXMaterial = MGFXMaterialEditor.Pin()->GetMGFXMaterial();
 
-	MGFXMaterialEditor.Pin()->OnLayersChangedEvent.AddRaw(this, &SMGFXMaterialEditorLayers::OnLayersChanged);
+	MGFXMaterialEditor.Pin()->OnLayersChangedEvent.AddRaw(this, &SMGFXMaterialEditorLayers::OnEditorLayersChanged);
 	MGFXMaterialEditor.Pin()->OnLayerSelectionChangedEvent.AddRaw(this, &SMGFXMaterialEditorLayers::OnEditorLayerSelectionChanged);
 
 	CommandList = MakeShareable(new FUICommandList);
@@ -63,12 +64,15 @@ void SMGFXMaterialEditorLayers::Construct(const FArguments& InArgs)
 		+ SVerticalBox::Slot()
 		[
 			SAssignNew(TreeView, SMGFXMaterialEditorLayerTreeView, SharedThis(this))
+			.SelectionMode(ESelectionMode::Multi)
 			.TreeItemsSource(&MGFXMaterial->RootLayers)
 			.OnSelectionChanged(this, &SMGFXMaterialEditorLayers::OnTreeSelectionChanged)
 			.OnContextMenuOpening(this, &SMGFXMaterialEditorLayers::OnTreeContextMenuOpening)
 			.OnSetExpansionRecursive(this, &SMGFXMaterialEditorLayers::OnSetExpansionRecursive)
 		]
 	];
+
+	TreeView->OnLayersDroppedEvent.BindRaw(this, &SMGFXMaterialEditorLayers::OnLayersDropped);
 
 	// start with all layers expanded
 	for (const TObjectPtr<UMGFXMaterialLayer> RootItem : MGFXMaterial->RootLayers)
@@ -177,12 +181,19 @@ bool SMGFXMaterialEditorLayers::CanRename()
 	return SelectedLayers.Num() == 1;
 }
 
+void SMGFXMaterialEditorLayers::OnLayersDropped(TObjectPtr<UMGFXMaterialLayer> NewParentLayer, const TArray<TObjectPtr<UMGFXMaterialLayer>>& DroppedLayers)
+{
+	TreeView->RequestTreeRefresh();
+
+	OnLayersChangedEvent.ExecuteIfBound();
+}
+
 void SMGFXMaterialEditorLayers::OnTreeSelectionChanged(TObjectPtr<UMGFXMaterialLayer> TreeItem, ESelectInfo::Type SelectInfo)
 {
 	// ignore incoming selection change events while broadcasting
 	bIsUpdatingSelection = true;
 
-	OnSelectionChanged.ExecuteIfBound(TreeView->GetSelectedItems());
+	OnSelectionChangedEvent.ExecuteIfBound(TreeView->GetSelectedItems());
 
 	bIsUpdatingSelection = false;
 }
@@ -231,7 +242,7 @@ FReply SMGFXMaterialEditorLayers::OnNewLayerButtonClicked()
 	return FReply::Handled();
 }
 
-void SMGFXMaterialEditorLayers::OnLayersChanged()
+void SMGFXMaterialEditorLayers::OnEditorLayersChanged()
 {
 	TreeView->RequestTreeRefresh();
 }

@@ -16,16 +16,77 @@
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 
+// FMGFXMaterialLayerDragDropOp
+// ----------------------------
+
+FMGFXMaterialLayerDragDropOp::~FMGFXMaterialLayerDragDropOp()
+{
+	delete Transaction;
+}
+
+void FMGFXMaterialLayerDragDropOp::OnDrop(bool bDropWasHandled, const FPointerEvent& MouseEvent)
+{
+	if (!bDropWasHandled)
+	{
+		Transaction->Cancel();
+	}
+}
+
+TSharedRef<FMGFXMaterialLayerDragDropOp> FMGFXMaterialLayerDragDropOp::New(const TArray<TObjectPtr<UMGFXMaterialLayer>>& InLayers)
+{
+	check(!InLayers.IsEmpty());
+
+	TSharedRef<FMGFXMaterialLayerDragDropOp> Operation = MakeShareable(new FMGFXMaterialLayerDragDropOp());
+
+	// set text and the transaction name based on single or multiple layers
+	if (InLayers.Num() == 1)
+	{
+		Operation->CurrentHoverText = Operation->DefaultHoverText = FText::FromString(InLayers[0]->Name);
+		Operation->CurrentIconBrush = FAppStyle::GetBrush(TEXT("Layer.Icon16x"));
+		Operation->Transaction = new FScopedTransaction(LOCTEXT("MoveLayer", "Move Layer"));
+	}
+	else
+	{
+		Operation->CurrentHoverText = Operation->DefaultHoverText = LOCTEXT("DragMultipleLayers", "Multiple Layers");
+		Operation->CurrentIconBrush = FAppStyle::GetBrush(TEXT("LevelEditor.Tabs.Layers"));
+		Operation->Transaction = new FScopedTransaction(LOCTEXT("MoveLayers", "Move Layers"));
+	}
+
+	// add entry for each layer
+	for (const auto& Layer : InLayers)
+	{
+		FItem DraggedItem(Layer, Layer->GetParentLayer());
+
+		DraggedItem.Layer->Modify();
+		if (DraggedItem.ParentLayer)
+		{
+			DraggedItem.ParentLayer->Modify();
+		}
+
+		Operation->DraggedItems.Add(DraggedItem);
+	}
+
+	Operation->Construct();
+
+	return Operation;
+}
+
+
 // SMGFXMaterialLayerRow
 // ---------------------
 
 void SMGFXMaterialLayerRow::Construct(const FArguments& InArgs, const TSharedRef<SMGFXMaterialEditorLayerTreeView>& InOwningTreeView)
 {
-	OwningTreeView = InOwningTreeView;
 	Item = InArgs._Item;
+	OnLayersDroppedEvent = InArgs._OnLayersDropped;
 
 	STableRow::Construct(
 		STableRow::FArguments()
+		.OnCanAcceptDrop(this, &SMGFXMaterialLayerRow::HandleCanAcceptDrop)
+		.OnAcceptDrop(this, &SMGFXMaterialLayerRow::HandleAcceptDrop)
+		.OnDragDetected(this, &SMGFXMaterialLayerRow::HandleDragDetected)
+		.OnDragEnter(this, &SMGFXMaterialLayerRow::HandleDragEnter)
+		.OnDragLeave(this, &SMGFXMaterialLayerRow::HandleDragLeave)
 		.Style(&FMGFXEditorStyle::Get().GetWidgetStyle<FTableRowStyle>("MGFXMaterialEditor.Layers.TableViewRow"))
 		.Padding(4.f)
 		.Content()
@@ -181,6 +242,130 @@ void SMGFXMaterialLayerRow::OnNameTextCommited(const FText& InText, ETextCommit:
 	}
 }
 
+FReply SMGFXMaterialLayerRow::HandleDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	// determine which item or items are being dragged
+	TArray<TObjectPtr<UMGFXMaterialLayer>> DraggedItems;
+
+	// drag all selected items
+	const TArray<TObjectPtr<UMGFXMaterialLayer>> SelectedItems = OwnerTablePtr.Pin()->GetSelectedItems();
+	if (SelectedItems.Num() > 1)
+	{
+		DraggedItems = SelectedItems;
+	}
+
+	// if nothing selected, drag at least this item
+	if (DraggedItems.IsEmpty())
+	{
+		if (Item.IsValid())
+		{
+			DraggedItems.Add(Item.Get());
+		}
+	}
+
+	if (!DraggedItems.IsEmpty())
+	{
+		return FReply::Handled().BeginDragDrop(FMGFXMaterialLayerDragDropOp::New(DraggedItems));
+	}
+
+	return FReply::Unhandled();
+}
+
+void SMGFXMaterialLayerRow::HandleDragEnter(const FDragDropEvent& DragDropEvent)
+{
+}
+
+void SMGFXMaterialLayerRow::HandleDragLeave(const FDragDropEvent& DragDropEvent)
+{
+}
+
+TOptional<EItemDropZone> SMGFXMaterialLayerRow::HandleCanAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone,
+                                                                    TObjectPtr<UMGFXMaterialLayer> TargetItem)
+{
+	if (!TargetItem)
+	{
+		return TOptional<EItemDropZone>();
+	}
+
+	// handle layer dragging
+	if (TSharedPtr<FMGFXMaterialLayerDragDropOp> LayerDragDropOp = DragDropEvent.GetOperationAs<FMGFXMaterialLayerDragDropOp>())
+	{
+		// TODO
+		// check for circular references
+
+		// TODO
+		// check that the drag is within the same material
+
+		return DropZone;
+	}
+
+	return TOptional<EItemDropZone>();
+}
+
+FReply SMGFXMaterialLayerRow::HandleAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, TObjectPtr<UMGFXMaterialLayer> TargetItem)
+{
+	if (TSharedPtr<FMGFXMaterialLayerDragDropOp> LayerDragDropOp = DragDropEvent.GetOperationAs<FMGFXMaterialLayerDragDropOp>())
+	{
+		// convert to avoid ambiguous conditionals
+		UMGFXMaterialLayer* TargetLayer = TargetItem;
+
+		// determine the new parent, either the target item, or the target item's parent (which may be the material itself)
+		IMGFXMaterialLayerParentInterface* NewContainer = DropZone == EItemDropZone::OntoItem ? TargetLayer : TargetItem->GetParentContainer();
+
+		UObject* ParentObject = CastChecked<UObject>(NewContainer);
+		ParentObject->Modify();
+
+		// determine the new index
+		int32 NewIndex;
+		switch (DropZone)
+		{
+		default:
+		case EItemDropZone::OntoItem:
+			NewIndex = 0;
+			break;
+		case EItemDropZone::AboveItem:
+			NewIndex = NewContainer->GetLayerIndex(TargetLayer);
+			break;
+		case EItemDropZone::BelowItem:
+			NewIndex = NewContainer->GetLayerIndex(TargetLayer) + 1;
+			break;
+		}
+
+		TArray<TObjectPtr<UMGFXMaterialLayer>> DroppedLayers;
+		for (const FMGFXMaterialLayerDragDropOp::FItem& DraggedItem : LayerDragDropOp->DraggedItems)
+		{
+			DraggedItem.Layer->Modify();
+
+			if (NewContainer->HasLayer(DraggedItem.Layer))
+			{
+				// just reordering an existing child
+				NewContainer->ReorderLayer(DraggedItem.Layer, NewIndex);
+			}
+			else
+			{
+				// remove from previous container
+				if (IMGFXMaterialLayerParentInterface* OldContainer = DraggedItem.Layer->GetParentContainer())
+				{
+					OldContainer->RemoveLayer(DraggedItem.Layer);
+					UObject* OldContainerObject = CastChecked<UObject>(OldContainer);
+					OldContainerObject->Modify();
+				}
+
+				// add to new one
+				NewContainer->AddLayer(DraggedItem.Layer, NewIndex);
+			}
+			DroppedLayers.Add(DraggedItem.Layer);
+		}
+
+		// broadcast event, sending new parent layer (which may be null if parenting to root)
+		UMGFXMaterialLayer* NewParentLayer = Cast<UMGFXMaterialLayer>(NewContainer);
+		OnLayersDroppedEvent.ExecuteIfBound(NewParentLayer, DroppedLayers);
+
+		return FReply::Handled();
+	}
+	return FReply::Unhandled();
+}
+
 
 // SMGFXMaterialEditorLayerTreeView
 // --------------------------------
@@ -196,7 +381,9 @@ void SMGFXMaterialEditorLayerTreeView::Construct(const FArguments& InArgs, const
 
 TSharedRef<ITableRow> SMGFXMaterialEditorLayerTreeView::MakeTableRowWidget(TObjectPtr<UMGFXMaterialLayer> InItem, const TSharedRef<STableViewBase>& OwnerTable)
 {
-	TSharedRef<SMGFXMaterialLayerRow> RowWidget = SNew(SMGFXMaterialLayerRow, SharedThis(this)).Item(InItem);
+	TSharedRef<SMGFXMaterialLayerRow> RowWidget = SNew(SMGFXMaterialLayerRow, SharedThis(this))
+		.Item(InItem)
+		.OnLayersDropped(this, &SMGFXMaterialEditorLayerTreeView::OnLayersDropped);
 
 	return RowWidget;
 }
@@ -214,6 +401,13 @@ void SMGFXMaterialEditorLayerTreeView::SetExpansionRecursive(TObjectPtr<UMGFXMat
 	{
 		SetExpansionRecursive(TreeItem->GetLayer(Idx), bShouldBeExpanded);
 	}
+}
+
+void SMGFXMaterialEditorLayerTreeView::OnLayersDropped(TObjectPtr<UMGFXMaterialLayer> NewParentLayer,
+                                                       const TArray<TObjectPtr<UMGFXMaterialLayer>>& DroppedLayers)
+{
+	// propagate the event upwards
+	OnLayersDroppedEvent.ExecuteIfBound(NewParentLayer, DroppedLayers);
 }
 
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION

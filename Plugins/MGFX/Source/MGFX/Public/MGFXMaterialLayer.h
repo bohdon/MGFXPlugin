@@ -95,6 +95,8 @@ public:
 
 	UMGFXMaterialLayer* GetParentLayer() const { return Parent; }
 
+	IMGFXMaterialLayerParentInterface* GetParentContainer() const;
+
 	void SetParentLayer(UMGFXMaterialLayer* NewParent);
 
 	virtual void PostLoad() override;

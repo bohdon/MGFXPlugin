@@ -4,15 +4,54 @@
 
 #include "CoreMinimal.h"
 #include "MGFXMaterialLayer.h"
+#include "DragAndDrop/DecoratedDragDropOp.h"
 #include "Widgets/SCompoundWidget.h"
 
+class FMGFXMaterialEditor;
 class SMGFXMaterialEditorLayerTreeView;
 class SMGFXMaterialEditorLayers;
 class UMGFXMaterialLayer;
 
 
+class FMGFXMaterialLayerDragDropOp : public FDecoratedDragDropOp
+{
+public:
+	struct FItem
+	{
+		/** The widget being dragged and dropped */
+		TObjectPtr<UMGFXMaterialLayer> Layer;
+
+		/** The original parent of the layer. */
+		TObjectPtr<UMGFXMaterialLayer> ParentLayer;
+	};
+
+	DRAG_DROP_OPERATOR_TYPE(FMGFXMaterialLayerDragDropOp, FDecoratedDragDropOp)
+
+	virtual ~FMGFXMaterialLayerDragDropOp();
+
+	virtual void OnDrop(bool bDropWasHandled, const FPointerEvent& MouseEvent) override;
+
+	TArray<FItem> DraggedItems;
+
+	/** Undo transaction that lives for the same lifetime as this drag operation. */
+	FScopedTransaction* Transaction;
+
+public:
+	/** Construct a new drag/drop operation */
+	static TSharedRef<FMGFXMaterialLayerDragDropOp> New(const TArray<TObjectPtr<UMGFXMaterialLayer>>& InLayers);
+};
+
+
+/**
+ * The widget displayed for each layer in a UMGFXMaterial.
+ */
 class SMGFXMaterialLayerRow : public STableRow<TObjectPtr<UMGFXMaterialLayer>>
 {
+public:
+	DECLARE_DELEGATE_TwoParams(FLayersDroppedDelegate,
+	                           TObjectPtr<UMGFXMaterialLayer> /*NewParentLayer*/,
+	                           const TArray<TObjectPtr<UMGFXMaterialLayer>>& /*DroppedLayers*/);
+
 public:
 	SLATE_BEGIN_ARGS(SMGFXMaterialLayerRow)
 		{
@@ -20,6 +59,7 @@ public:
 
 		/** The list item for this row */
 		SLATE_ARGUMENT(TObjectPtr<UMGFXMaterialLayer>, Item)
+		SLATE_EVENT(FLayersDroppedDelegate, OnLayersDropped)
 
 	SLATE_END_ARGS()
 
@@ -42,6 +82,14 @@ public:
 	/** Commit a new layer name. */
 	void OnNameTextCommited(const FText& InText, ETextCommit::Type CommitInfo);
 
+	FReply HandleDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
+	void HandleDragEnter(const FDragDropEvent& DragDropEvent);
+	void HandleDragLeave(const FDragDropEvent& DragDropEvent);
+
+	TOptional<EItemDropZone> HandleCanAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone,
+	                                             TObjectPtr<UMGFXMaterialLayer> TargetItem);
+	FReply HandleAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, TObjectPtr<UMGFXMaterialLayer> TargetItem);
+
 protected:
 	/** The item associated with this row of data */
 	TWeakObjectPtr<UMGFXMaterialLayer> Item;
@@ -49,8 +97,8 @@ protected:
 	/** Editable text block for the layer name. */
 	TWeakPtr<SInlineEditableTextBlock> EditableNameText;
 
-	/** Weak pointer to the owning tree view */
-	TWeakPtr<SMGFXMaterialEditorLayerTreeView> OwningTreeView;
+	/** Called when one or more layers is drag and dropped onto a new layer. */
+	FLayersDroppedDelegate OnLayersDroppedEvent;
 
 	FSlateBrush LayerIconBrush;
 };
@@ -68,4 +116,11 @@ public:
 	void HandleGetChildrenForTree(TObjectPtr<UMGFXMaterialLayer> InItem, TArray<TObjectPtr<UMGFXMaterialLayer>>& OutChildren);
 
 	void SetExpansionRecursive(TObjectPtr<UMGFXMaterialLayer> InItem, bool bShouldBeExpanded);
+
+	/** Called when one or more layers is drag and dropped onto a new layer. */
+	SMGFXMaterialLayerRow::FLayersDroppedDelegate OnLayersDroppedEvent;
+
+protected:
+	/** Called from table row widgets when one or more layers is drag and dropped onto a new layer. */
+	void OnLayersDropped(TObjectPtr<UMGFXMaterialLayer> NewParentLayer, const TArray<TObjectPtr<UMGFXMaterialLayer>>& DroppedLayers);
 };

@@ -343,6 +343,18 @@ bool FMGFXMaterialEditor::IsDetailsRowVisible(FName InRowName, FName InParentNam
 	return true;
 }
 
+void FMGFXMaterialEditor::OnLayersChanged()
+{
+	RegenerateMaterial();
+
+	OnLayersChangedEvent.Broadcast();
+}
+
+void FMGFXMaterialEditor::OnLayersChangedByLayersView()
+{
+	OnLayersChanged();
+}
+
 void FMGFXMaterialEditor::NotifyPreChange(FProperty* PropertyAboutToChange)
 {
 }
@@ -486,6 +498,7 @@ TSharedRef<SDockTab> FMGFXMaterialEditor::SpawnTab_Layers(const FSpawnTabArgs& A
 		SAssignNew(LayersWidget, SMGFXMaterialEditorLayers)
 		.MGFXMaterialEditor(SharedThis(this))
 		.OnSelectionChanged(this, &FMGFXMaterialEditor::OnLayerSelectionChanged)
+		.OnLayersChanged(this, &FMGFXMaterialEditor::OnLayersChangedByLayersView)
 	];
 }
 
@@ -1096,9 +1109,7 @@ void FMGFXMaterialEditor::DeleteSelectedLayers()
 		}
 	}
 
-	RegenerateMaterial();
-
-	OnLayersChangedEvent.Broadcast();
+	OnLayersChanged();
 }
 
 bool FMGFXMaterialEditor::CanDeleteSelectedLayers()
@@ -1120,7 +1131,7 @@ void FMGFXMaterialEditor::CutSelectedLayers()
 {
 	// TODO
 
-	OnLayersChangedEvent.Broadcast();
+	OnLayersChanged();
 }
 
 bool FMGFXMaterialEditor::CanCutSelectedLayers()
@@ -1132,7 +1143,7 @@ void FMGFXMaterialEditor::PasteLayers()
 {
 	// TODO
 
-	OnLayersChangedEvent.Broadcast();
+	OnLayersChanged();
 }
 
 bool FMGFXMaterialEditor::CanPasteLayers()
@@ -1144,7 +1155,7 @@ void FMGFXMaterialEditor::DuplicateSelectedLayers()
 {
 	// TODO
 
-	OnLayersChangedEvent.Broadcast();
+	OnLayersChanged();
 }
 
 bool FMGFXMaterialEditor::CanDuplicateSelectedLayers()

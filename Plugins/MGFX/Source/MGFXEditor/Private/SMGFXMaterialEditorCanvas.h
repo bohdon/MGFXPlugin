@@ -67,5 +67,7 @@ protected:
 	/** Animates the width of selection outlines. */
 	FCurveSequence SelectionOutlineAnim;
 
+	bool bAlwaysShowArtboardBorder;
+
 	void OnLayerSelectionChanged(const TArray<TObjectPtr<UMGFXMaterialLayer>>& SelectedLayers);
 };

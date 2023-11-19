@@ -83,6 +83,12 @@ public:
 
 	bool IsDetailsRowVisible(FName InRowName, FName InParentName);
 
+	/** Called whenever a layer is added, removed, or reparented. */
+	void OnLayersChanged();
+
+	/** Called when a layer is added, removed, or reparented by the layers view. */
+	void OnLayersChangedByLayersView();
+
 	// FNotifyHook
 	virtual void NotifyPreChange(FProperty* PropertyAboutToChange) override;
 	virtual void NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FProperty* PropertyThatChanged) override;

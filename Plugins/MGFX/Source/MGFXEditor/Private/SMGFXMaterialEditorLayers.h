@@ -17,6 +17,8 @@ class UMGFXMaterialLayer;
 class MGFXEDITOR_API SMGFXMaterialEditorLayers : public SCompoundWidget
 {
 public:
+	DECLARE_DELEGATE(FLayersChangedDelegate);
+
 	DECLARE_DELEGATE_OneParam(FOnSelectionChanged, TArray<TObjectPtr<UMGFXMaterialLayer>> /*SelectedLayers*/);
 
 public:
@@ -27,6 +29,7 @@ public:
 		SLATE_ARGUMENT(TWeakPtr<FMGFXMaterialEditor>, MGFXMaterialEditor)
 
 		SLATE_EVENT(FOnSelectionChanged, OnSelectionChanged)
+		SLATE_EVENT(FLayersChangedDelegate, OnLayersChanged)
 
 	SLATE_END_ARGS()
 
@@ -55,7 +58,11 @@ protected:
 
 	TSharedPtr<SMGFXMaterialEditorLayerTreeView> TreeView;
 
-	FOnSelectionChanged OnSelectionChanged;
+	/** Called when the selection is changed caused by the tree view of this widget. */
+	FOnSelectionChanged OnSelectionChangedEvent;
+
+	/** Called whenever a layer is added, removed, or reparented by this widget. */
+	FLayersChangedDelegate OnLayersChangedEvent;
 
 	/** Commands specific to the layers view. */
 	TSharedPtr<FUICommandList> CommandList;
@@ -63,15 +70,21 @@ protected:
 	/** Flag used to ignore selection changes originating from the tree view. */
 	bool bIsUpdatingSelection = false;
 
+	/** Flag used to ignore layer change events originating from the editor. */
+	bool bIsBroadcastingLayerChange = false;
+
 	void OnTreeSelectionChanged(TObjectPtr<UMGFXMaterialLayer> TreeItem, ESelectInfo::Type SelectInfo);
 	TSharedPtr<SWidget> OnTreeContextMenuOpening();
 	void OnSetExpansionRecursive(TObjectPtr<UMGFXMaterialLayer> InItem, bool bShouldBeExpanded);
+
+	/** Called when one or more layers is dragged and dropped in the tree view. */
+	void OnLayersDropped(TObjectPtr<UMGFXMaterialLayer> NewParentLayer, const TArray<TObjectPtr<UMGFXMaterialLayer>>& DroppedLayers);
+
+	// called when a layer is added, removed, or reparented
+	void OnEditorLayersChanged();
 
 	/** Called when the selection has changed and the tree view should update to match. */
 	void OnEditorLayerSelectionChanged(const TArray<TObjectPtr<UMGFXMaterialLayer>>& SelectedLayers);
 
 	FReply OnNewLayerButtonClicked();
-
-	// called when a layer is added, removed, or reparented
-	void OnLayersChanged();
 };

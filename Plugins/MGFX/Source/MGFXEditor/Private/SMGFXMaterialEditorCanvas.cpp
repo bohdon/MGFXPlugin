@@ -17,6 +17,9 @@ void SMGFXMaterialEditorCanvas::Construct(const FArguments& InArgs)
 
 	MGFXMaterialEditor = InArgs._MGFXMaterialEditor;
 
+	// TODO: expose as view option
+	bAlwaysShowArtboardBorder = true;
+
 	MGFXMaterialEditor.Pin()->OnLayerSelectionChangedEvent.AddRaw(this, &SMGFXMaterialEditorCanvas::OnLayerSelectionChanged);
 	MGFXMaterialEditor.Pin()->OnMaterialChangedEvent.AddRaw(this, &SMGFXMaterialEditorCanvas::OnMaterialChanged);
 
@@ -64,6 +67,11 @@ const FSlateBrush* SMGFXMaterialEditorCanvas::GetArtboardBackground() const
 
 bool SMGFXMaterialEditorCanvas::ShouldShowArtboardBorder() const
 {
+	if (bAlwaysShowArtboardBorder)
+	{
+		return true;
+	}
+
 	// when the preview image doesn't match the current artboard settings, force display the border
 	const SArtboardPanel::FSlot* Slot = ArtboardPanel->GetWidgetSlot(PreviewImage);
 	return Slot->GetSize() != GetArtboardSize();
