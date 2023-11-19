@@ -22,6 +22,8 @@ FMGFXEditorStyle::FMGFXEditorStyle()
 	{
 		Set(TEXT("MGFXMaterialEditor.RegenerateMaterial"), new IMAGE_BRUSH_SVG("Starship/Common/Apply", Icon20x20));
 
+		Set(TEXT("ArtboardBackground"), new FSlateColorBrush(FLinearColor(0.005f, 0.005f, 0.005f)));
+
 		const FSlateColor SelectionColor = FAppStyle::GetSlateColor("SelectionColor");
 		const FSlateColor SelectorColor = FAppStyle::GetSlateColor("SelectorColor");
 

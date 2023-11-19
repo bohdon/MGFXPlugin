@@ -191,6 +191,8 @@ void FMGFXMaterialEditor::RegenerateMaterial()
 
 	const FScopedTransaction Transaction(LOCTEXT("RegenerateMaterial", "MGFX Material Editor: Regenerate Material"));
 
+	Material->Modify();
+
 	// set material properties
 	Material->MaterialDomain = MGFXMaterial->MaterialDomain;
 	Material->BlendMode = MGFXMaterial->BlendMode;
@@ -202,9 +204,27 @@ void FMGFXMaterialEditor::RegenerateMaterial()
 	Generate_AddUVsBoilerplate(Builder);
 	Generate_Layers(Builder);
 
-	// connect layer output to final color
-	UMaterialExpressionNamedRerouteUsage* OutputUsageExp = Builder.CreateNamedRerouteUsage(FVector2D(GridSize * -16, 0), Reroute_LayersOutput);
-	Builder.ConnectProperty(OutputUsageExp, "", MP_EmissiveColor);
+	FVector2D NodePos(GridSize * -31, 0);
+
+	if (MGFXMaterial->OutputProperty == MP_EmissiveColor)
+	{
+		// connect layer output to final color
+		UMaterialExpressionNamedRerouteUsage* OutputUsageExp = Builder.CreateNamedRerouteUsage(NodePos, Reroute_LayersOutput);
+		Builder.ConnectProperty(OutputUsageExp, "", MGFXMaterial->OutputProperty);
+	}
+	else
+	{
+		// connect constant to final color
+		UMaterialExpressionConstant3Vector* ColorExp = Builder.Create<UMaterialExpressionConstant3Vector>(NodePos);
+		SET_PROP(ColorExp, Constant, MGFXMaterial->DefaultEmissiveColor);
+		Builder.ConnectProperty(ColorExp, "", MP_EmissiveColor);
+
+		NodePos.Y += GridSize * 15;
+
+		// connect layer output to custom property
+		UMaterialExpressionNamedRerouteUsage* OutputUsageExp = Builder.CreateNamedRerouteUsage(NodePos, Reroute_LayersOutput);
+		Builder.ConnectProperty(OutputUsageExp, "", MGFXMaterial->OutputProperty);
+	}
 
 	Builder.RecompileMaterial();
 
@@ -329,20 +349,23 @@ void FMGFXMaterialEditor::NotifyPreChange(FProperty* PropertyAboutToChange)
 
 void FMGFXMaterialEditor::NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FProperty* PropertyThatChanged)
 {
-	if (PropertyChangedEvent.ChangeType == EPropertyChangeType::Interactive)
+	if (PropertyChangedEvent.ChangeType == EPropertyChangeType::Interactive || !PropertyThatChanged)
 	{
 		return;
 	}
 
-	if (PropertyThatChanged)
-	{
-		const FName PropertyName = PropertyThatChanged->GetFName();
+	const FName PropertyName = PropertyThatChanged->GetFName();
+	const FName MemberPropertyName = PropertyChangedEvent.GetMemberPropertyName();
 
-		if (PropertyName == GET_MEMBER_NAME_CHECKED(UMGFXMaterial, Material))
-		{
-			OnMaterialChangedEvent.Broadcast(MGFXMaterial->Material);
-			return;
-		}
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UMGFXMaterial, Material))
+	{
+		OnMaterialChangedEvent.Broadcast(MGFXMaterial->Material);
+		return;
+	}
+	else if (MemberPropertyName == GET_MEMBER_NAME_CHECKED(UMGFXMaterial, DesignerBackground) ||
+		MemberPropertyName == GET_MEMBER_NAME_CHECKED(UMGFXMaterial, bOverrideDesignerBackground))
+	{
+		return;
 	}
 
 	// TODO: filter properties that cause regenerate
@@ -476,7 +499,7 @@ TSharedRef<SDockTab> FMGFXMaterialEditor::SpawnTab_Details(const FSpawnTabArgs& 
 
 void FMGFXMaterialEditor::Generate_DeleteAllNodes(FMGFXMaterialBuilder& Builder)
 {
-	Builder.Material->GetExpressionCollection().Empty();
+	Builder.DeleteAll();
 }
 
 void FMGFXMaterialEditor::Generate_AddWarningComment(FMGFXMaterialBuilder& Builder)

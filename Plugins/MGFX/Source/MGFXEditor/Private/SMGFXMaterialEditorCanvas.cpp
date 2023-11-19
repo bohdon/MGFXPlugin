@@ -24,6 +24,8 @@ void SMGFXMaterialEditorCanvas::Construct(const FArguments& InArgs)
 
 	SelectionOutlineAnim = FCurveSequence(0.0f, 0.15f, ECurveEaseFunction::QuadOut);
 
+	UMGFXMaterial* MGFXMaterial = MGFXMaterialEditor.Pin()->GetMGFXMaterial();
+
 	ChildSlot
 	[
 		SNew(SOverlay)
@@ -32,7 +34,7 @@ void SMGFXMaterialEditorCanvas::Construct(const FArguments& InArgs)
 		[
 			SAssignNew(ArtboardPanel, SArtboardPanel)
 			.ArtboardSize(this, &SMGFXMaterialEditorCanvas::GetArtboardSize)
-			.BackgroundBrush(FSlateColorBrush(FLinearColor(0.002f, 0.002f, 0.002f)))
+			.BackgroundBrush(this, &SMGFXMaterialEditorCanvas::GetArtboardBackground)
 			.bShowArtboardBorder(this, &SMGFXMaterialEditorCanvas::ShouldShowArtboardBorder)
 			.ZoomAmountMax(100.f)
 			.Clipping(EWidgetClipping::ClipToBounds)
@@ -51,7 +53,13 @@ void SMGFXMaterialEditorCanvas::Construct(const FArguments& InArgs)
 
 FVector2D SMGFXMaterialEditorCanvas::GetArtboardSize() const
 {
-	return MGFXMaterialEditor.IsValid() ? MGFXMaterialEditor.Pin()->GetCanvasSize() : FVector2D(512, 512);
+	return MGFXMaterialEditor.Pin()->GetCanvasSize();
+}
+
+const FSlateBrush* SMGFXMaterialEditorCanvas::GetArtboardBackground() const
+{
+	const UMGFXMaterial* MGFXMaterial = MGFXMaterialEditor.Pin()->GetMGFXMaterial();
+	return MGFXMaterial->bOverrideDesignerBackground ? &MGFXMaterial->DesignerBackground : nullptr;
 }
 
 bool SMGFXMaterialEditorCanvas::ShouldShowArtboardBorder() const

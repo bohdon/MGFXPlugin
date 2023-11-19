@@ -16,8 +16,12 @@ FString FMGFXMaterialLayer_DEPRECATED::GetName(int32 LayerIdx) const
 UMGFXMaterial::UMGFXMaterial()
 	: MaterialDomain(MD_UI),
 	  BlendMode(BLEND_Translucent),
-	  BaseCanvasSize(256, 256)
+	  OutputProperty(MP_EmissiveColor),
+	  DefaultEmissiveColor(FLinearColor::White),
+	  BaseCanvasSize(256, 256),
+	  bOverrideDesignerBackground(false)
 {
+	DesignerBackground = FSlateColorBrush(FLinearColor(0.005f, 0.005f, 0.005f));
 }
 
 void UMGFXMaterial::GetAllLayers(TArray<TObjectPtr<UMGFXMaterialLayer>>& OutLayers) const

@@ -171,3 +171,23 @@ void FMGFXMaterialBuilder::RecompileMaterial()
 {
 	UMaterialEditingLibrary::RecompileMaterial(Material);
 }
+
+void FMGFXMaterialBuilder::DeleteAll()
+{
+	UMaterialEditorOnlyData* MaterialEditorOnly = Material->GetEditorOnlyData();
+
+	MaterialEditorOnly->BaseColor.Expression = nullptr;
+	MaterialEditorOnly->EmissiveColor.Expression = nullptr;
+	MaterialEditorOnly->SubsurfaceColor.Expression = nullptr;
+	MaterialEditorOnly->Roughness.Expression = nullptr;
+	MaterialEditorOnly->Metallic.Expression = nullptr;
+	MaterialEditorOnly->Specular.Expression = nullptr;
+	MaterialEditorOnly->Opacity.Expression = nullptr;
+	MaterialEditorOnly->Refraction.Expression = nullptr;
+	MaterialEditorOnly->OpacityMask.Expression = nullptr;
+	MaterialEditorOnly->ClearCoat.Expression = nullptr;
+	MaterialEditorOnly->ClearCoatRoughness.Expression = nullptr;
+	MaterialEditorOnly->Normal.Expression = nullptr;
+
+	Material->GetExpressionCollection().Empty();
+}

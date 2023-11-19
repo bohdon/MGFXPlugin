@@ -31,6 +31,8 @@ public:
 
 	FVector2D GetArtboardSize() const;
 
+	const FSlateBrush* GetArtboardBackground() const;
+
 	bool ShouldShowArtboardBorder() const;
 
 	TSharedPtr<SArtboardPanel> GetArtboardPanel() const { return ArtboardPanel; }

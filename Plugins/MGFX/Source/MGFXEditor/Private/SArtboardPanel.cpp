@@ -3,8 +3,9 @@
 
 #include "SArtboardPanel.h"
 
+#include "MGFXEditorStyle.h"
 #include "SlateOptMacros.h"
-#include "Settings/EditorStyleSettings.h"
+
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
@@ -52,31 +53,17 @@ SArtboardPanel::SArtboardPanel()
 void SArtboardPanel::Construct(const FArguments& InArgs)
 {
 	ArtboardSize = InArgs._ArtboardSize;
-	BackgroundBrush = InArgs._BackgroundBrush;
-	bShowArtboardBorder = InArgs._bShowArtboardBorder;
 	ZoomAmountMin = InArgs._ZoomAmountMin;
 	ZoomAmountMax = InArgs._ZoomAmountMax;
-
-	if (!(BackgroundBrush.IsSet() || BackgroundBrush.IsBound()))
-	{
-		const FSlateBrush* DefaultBackground = FAppStyle::GetBrush(TEXT("Graph.Panel.SolidBackground"));
-		const FSlateBrush* CustomBackground = &GetDefault<UEditorStyleSettings>()->GraphBackgroundBrush;
-		BackgroundBrush.Set(CustomBackground->HasUObject() ? *CustomBackground : *DefaultBackground);
-	}
+	BackgroundBrush = InArgs._BackgroundBrush;
+	bShowArtboardBorder = InArgs._bShowArtboardBorder;
 
 	Children.AddSlots(MoveTemp(const_cast<TArray<FSlot::FSlotArguments>&>(InArgs._Slots)));
 }
 
 TSharedRef<SWidget> SArtboardPanel::ConstructOverlay()
 {
-	return SNew(SOverlay)
-		+ SOverlay::Slot()
-		  .HAlign(HAlign_Left)
-		  .VAlign(VAlign_Bottom)
-		[
-			SNew(STextBlock)
-			.Text(this, &SArtboardPanel::GetDebugText)
-		];
+	return SNew(SOverlay);
 }
 
 void SArtboardPanel::ClearChildren()
@@ -262,13 +249,19 @@ void SArtboardPanel::Tick(const FGeometry& AllottedGeometry, const double InCurr
 int32 SArtboardPanel::PaintBackground(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements,
                                       int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
 {
+	const FSlateBrush* Background = BackgroundBrush.Get();
+	if (!Background)
+	{
+		Background = FMGFXEditorStyle::Get().GetBrush(TEXT("ArtboardBackground"));
+	}
+
 	FSlateDrawElement::MakeBox(
 		OutDrawElements,
 		LayerId,
 		AllottedGeometry.ToPaintGeometry(),
-		&BackgroundBrush.Get(),
+		Background,
 		ESlateDrawEffect::None,
-		BackgroundBrush.Get().TintColor.GetSpecifiedColor()
+		Background->TintColor.GetSpecifiedColor()
 	);
 
 	return LayerId;
@@ -413,11 +406,6 @@ void SArtboardPanel::OnViewOffsetChanged()
 
 void SArtboardPanel::OnZoomChanged()
 {
-}
-
-FText SArtboardPanel::GetDebugText() const
-{
-	return FText::FromString(TEXT("Hello"));
 }
 
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION

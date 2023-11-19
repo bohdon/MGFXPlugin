@@ -68,10 +68,10 @@ public:
 		}
 
 		SLATE_ATTRIBUTE(FVector2D, ArtboardSize)
-		SLATE_ATTRIBUTE(FSlateBrush, BackgroundBrush)
-		SLATE_ATTRIBUTE(bool, bShowArtboardBorder)
 		SLATE_ARGUMENT(float, ZoomAmountMin)
 		SLATE_ARGUMENT(float, ZoomAmountMax)
+		SLATE_ATTRIBUTE(const FSlateBrush*, BackgroundBrush)
+		SLATE_ATTRIBUTE(bool, bShowArtboardBorder)
 		SLATE_SLOT_ARGUMENT(FSlot, Slots)
 
 	SLATE_END_ARGS()
@@ -102,7 +102,6 @@ public:
 	virtual FReply OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 	virtual FReply OnMouseWheel(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
-
 
 	virtual int32 PaintBackground(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect,
 	                              FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const;
@@ -189,7 +188,7 @@ protected:
 
 	TPanelChildren<FSlot> Children;
 
-	TAttribute<FSlateBrush> BackgroundBrush;
+	TAttribute<const FSlateBrush*> BackgroundBrush;
 
 	TAttribute<bool> bShowArtboardBorder;
 
@@ -198,6 +197,4 @@ protected:
 	virtual void OnViewOffsetChanged();
 
 	virtual void OnZoomChanged();
-
-	virtual FText GetDebugText() const;
 };

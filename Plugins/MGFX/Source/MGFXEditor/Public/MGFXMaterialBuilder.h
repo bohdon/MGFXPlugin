@@ -81,4 +81,7 @@ struct MGFXEDITOR_API FMGFXMaterialBuilder
 	void ConfigureParameter(UMaterialExpressionParameter* ParameterExp, FName ParameterName, FName Group, int32 SortPriority = 32) const;
 
 	void RecompileMaterial();
+
+	/** Delete all expressions in the material. */
+	void DeleteAll();
 };
