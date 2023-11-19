@@ -20,8 +20,8 @@ void SMGFXMaterialEditorCanvas::Construct(const FArguments& InArgs)
 	// TODO: expose as view option
 	bAlwaysShowArtboardBorder = true;
 
-	MGFXMaterialEditor.Pin()->OnLayerSelectionChangedEvent.AddRaw(this, &SMGFXMaterialEditorCanvas::OnLayerSelectionChanged);
-	MGFXMaterialEditor.Pin()->OnMaterialChangedEvent.AddRaw(this, &SMGFXMaterialEditorCanvas::OnMaterialChanged);
+	MGFXMaterialEditor.Pin()->OnLayerSelectionChangedEvent.AddSP(this, &SMGFXMaterialEditorCanvas::OnLayerSelectionChanged);
+	MGFXMaterialEditor.Pin()->OnMaterialChangedEvent.AddSP(this, &SMGFXMaterialEditorCanvas::OnMaterialChanged);
 
 	PreviewImageBrush.SetResourceObject(MGFXMaterialEditor.Pin()->GetGeneratedMaterial());
 

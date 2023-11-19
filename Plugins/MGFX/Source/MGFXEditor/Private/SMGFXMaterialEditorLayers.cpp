@@ -28,8 +28,8 @@ void SMGFXMaterialEditorLayers::Construct(const FArguments& InArgs)
 
 	MGFXMaterial = MGFXMaterialEditor.Pin()->GetMGFXMaterial();
 
-	MGFXMaterialEditor.Pin()->OnLayersChangedEvent.AddRaw(this, &SMGFXMaterialEditorLayers::OnEditorLayersChanged);
-	MGFXMaterialEditor.Pin()->OnLayerSelectionChangedEvent.AddRaw(this, &SMGFXMaterialEditorLayers::OnEditorLayerSelectionChanged);
+	MGFXMaterialEditor.Pin()->OnLayersChangedEvent.AddSP(this, &SMGFXMaterialEditorLayers::OnEditorLayersChanged);
+	MGFXMaterialEditor.Pin()->OnLayerSelectionChangedEvent.AddSP(this, &SMGFXMaterialEditorLayers::OnEditorLayerSelectionChanged);
 
 	CommandList = MakeShareable(new FUICommandList);
 
@@ -179,6 +179,16 @@ bool SMGFXMaterialEditorLayers::CanRename()
 {
 	const TArray<UMGFXMaterialLayer*> SelectedLayers = MGFXMaterialEditor.Pin()->GetSelectedLayers();
 	return SelectedLayers.Num() == 1;
+}
+
+FReply SMGFXMaterialEditorLayers::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
+{
+	if (CommandList->ProcessCommandBindings(InKeyEvent))
+	{
+		return FReply::Handled();
+	}
+
+	return SCompoundWidget::OnKeyDown(MyGeometry, InKeyEvent);
 }
 
 void SMGFXMaterialEditorLayers::OnLayersDropped(TObjectPtr<UMGFXMaterialLayer> NewParentLayer, const TArray<TObjectPtr<UMGFXMaterialLayer>>& DroppedLayers)

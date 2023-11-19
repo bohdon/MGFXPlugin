@@ -52,6 +52,8 @@ public:
 
 	bool CanRename();
 
+	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
+
 protected:
 	/** Weak pointer to the material being edited. */
 	TWeakObjectPtr<UMGFXMaterial> MGFXMaterial;
