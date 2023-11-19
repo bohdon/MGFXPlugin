@@ -33,9 +33,21 @@ public:
 	                      int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
 	virtual TOptional<bool> OnQueryShowFocus(const EFocusCause InFocusCause) const override;
 
+	/** Make the name text editable to start renaming this layer. */
+	void BeginRename();
+
+	/** Verify that a new name is valid during a renaming. */
+	bool OnVerifyNameTextChanged(const FText& InText, FText& OutErrorMessage);
+
+	/** Commit a new layer name. */
+	void OnNameTextCommited(const FText& InText, ETextCommit::Type CommitInfo);
+
 protected:
 	/** The item associated with this row of data */
 	TWeakObjectPtr<UMGFXMaterialLayer> Item;
+
+	/** Editable text block for the layer name. */
+	TWeakPtr<SInlineEditableTextBlock> EditableNameText;
 
 	/** Weak pointer to the owning tree view */
 	TWeakPtr<SMGFXMaterialEditorLayerTreeView> OwningTreeView;

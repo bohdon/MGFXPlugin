@@ -159,6 +159,16 @@ void SMGFXMaterialEditorLayers::ReparentLayer(UMGFXMaterialLayer* Layer, UMGFXMa
 
 void SMGFXMaterialEditorLayers::BeginRename()
 {
+	TArray<TObjectPtr<UMGFXMaterialLayer>> SelectedLayers = MGFXMaterialEditor.Pin()->GetSelectedLayers();
+	if (SelectedLayers.Num() == 1)
+	{
+		const TSharedPtr<ITableRow> LayerWidget = TreeView->WidgetFromItem(SelectedLayers[0]);
+		TSharedPtr<SMGFXMaterialLayerRow> RowWidget = StaticCastSharedPtr<SMGFXMaterialLayerRow>(LayerWidget);
+		if (RowWidget.IsValid())
+		{
+			RowWidget->BeginRename();
+		}
+	}
 }
 
 bool SMGFXMaterialEditorLayers::CanRename()

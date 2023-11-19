@@ -7,6 +7,10 @@
 #include "MGFXMaterialLayer.h"
 #include "SlateOptMacros.h"
 #include "SMGFXMaterialEditorLayers.h"
+#include "Widgets/Text/SInlineEditableTextBlock.h"
+
+
+#define LOCTEXT_NAMESPACE "MGFXMaterialEditor"
 
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
@@ -57,8 +61,11 @@ void SMGFXMaterialLayerRow::Construct(const FArguments& InArgs, const TSharedRef
 				+ SHorizontalBox::Slot()
 				.HAlign(HAlign_Fill)
 				[
-					SNew(STextBlock)
+					SAssignNew(EditableNameText, SInlineEditableTextBlock)
 					.Text_Lambda([this]() { return FText::FromString(Item->Name); })
+					.OnVerifyTextChanged(this, &SMGFXMaterialLayerRow::OnVerifyNameTextChanged)
+					.OnTextCommitted(this, &SMGFXMaterialLayerRow::OnNameTextCommited)
+					.IsSelected(this, &SMGFXMaterialLayerRow::IsSelectedExclusively)
 				]
 			]
 		],
@@ -137,6 +144,41 @@ int32 SMGFXMaterialLayerRow::OnPaint(const FPaintArgs& Args, const FGeometry& Al
 TOptional<bool> SMGFXMaterialLayerRow::OnQueryShowFocus(const EFocusCause InFocusCause) const
 {
 	return TOptional<bool>(false);
+}
+
+void SMGFXMaterialLayerRow::BeginRename()
+{
+	TSharedPtr<SInlineEditableTextBlock> TextBlock = EditableNameText.Pin();
+	if (TextBlock.IsValid())
+	{
+		TextBlock->EnterEditingMode();
+	}
+}
+
+bool SMGFXMaterialLayerRow::OnVerifyNameTextChanged(const FText& InText, FText& OutErrorMessage)
+{
+	if (InText.IsEmpty())
+	{
+		OutErrorMessage = LOCTEXT("LayerNameEmpty", "Layer names cannot be empty");
+		return false;
+	}
+
+	return true;
+}
+
+void SMGFXMaterialLayerRow::OnNameTextCommited(const FText& InText, ETextCommit::Type CommitInfo)
+{
+	if (CommitInfo == ETextCommit::OnEnter)
+	{
+		const FString NewName = InText.ToString().TrimStartAndEnd();
+
+		if (!Item->Name.Equals(NewName))
+		{
+			FScopedTransaction Transaction(LOCTEXT("RenameLayer", "Rename Layer"));
+			Item->Modify();
+			Item->Name = NewName;
+		}
+	}
 }
 
 
