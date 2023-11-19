@@ -346,9 +346,10 @@ FReply SMGFXMaterialLayerRow::HandleAcceptDrop(const FDragDropEvent& DragDropEve
 				// remove from previous container
 				if (IMGFXMaterialLayerParentInterface* OldContainer = DraggedItem.Layer->GetParentContainer())
 				{
-					OldContainer->RemoveLayer(DraggedItem.Layer);
 					UObject* OldContainerObject = CastChecked<UObject>(OldContainer);
 					OldContainerObject->Modify();
+
+					OldContainer->RemoveLayer(DraggedItem.Layer);
 				}
 
 				// add to new one
