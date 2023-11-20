@@ -12,7 +12,8 @@
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 SMGFXShapeTransformHandle::SMGFXShapeTransformHandle()
-	: Transaction(nullptr)
+	: ArrowSize(7.f),
+	  Transaction(nullptr)
 {
 }
 
@@ -26,8 +27,10 @@ void SMGFXShapeTransformHandle::Construct(const FArguments& InArgs)
 	OnGetTransform = InArgs._OnGetTransform;
 	OnMoveTransform = InArgs._OnMoveTransform;
 	OnDragFinished = InArgs._OnDragFinished;
-	const float HandleLength = InArgs._HandleLength;
-	const float HandleWidth = InArgs._HandleWidth;
+	HandleLength = InArgs._HandleLength;
+	HandleWidth = InArgs._HandleWidth;
+	HandleLineWidth = InArgs._HandleLineWidth;
+	ArrowSize = InArgs._ArrowSize;
 
 	const float HandleHalfWidth = HandleWidth / 2.f;
 
@@ -46,9 +49,7 @@ void SMGFXShapeTransformHandle::Construct(const FArguments& InArgs)
 		  .VAlign(VAlign_Center)
 		[
 			SAssignNew(TranslateXHandle, SImage)
-			.Image(FMGFXEditorStyle::Get().GetBrush("NoBrush"))
 			.ColorAndOpacity(FLinearColor::Transparent)
-			// .ColorAndOpacity(this, &SMGFXShapeTransformHandle::GetHandleColor, EMGFXShapeTransformHandle::TranslateX)
 		]
 
 		// Y-axis
@@ -59,9 +60,7 @@ void SMGFXShapeTransformHandle::Construct(const FArguments& InArgs)
 		  .VAlign(VAlign_Bottom)
 		[
 			SAssignNew(TranslateYHandle, SImage)
-			.Image(FMGFXEditorStyle::Get().GetBrush("NoBrush"))
 			.ColorAndOpacity(FLinearColor::Transparent)
-			// .ColorAndOpacity(this, &SMGFXShapeTransformHandle::GetHandleColor, EMGFXShapeTransformHandle::TranslateY)
 		]
 	];
 }
@@ -94,12 +93,28 @@ FReply SMGFXShapeTransformHandle::OnMouseMove(const FGeometry& MyGeometry, const
 {
 	if (bIsDragging)
 	{
-		check(ActiveHandle.IsSet());
+		check(OriginalActiveHandle.IsSet());
 
-		// TODO: perform drag
+		// get the raw delta
 		FVector2D DragDelta = MouseEvent.GetScreenSpacePosition() - DragStartPosition;
 
-		// clamp to axis
+		// temporarily change active handle if holding certain modifiers
+		ActiveHandle = OriginalActiveHandle;
+		if (ActiveHandle.GetValue() == EMGFXShapeTransformHandle::TranslateXY && MouseEvent.IsShiftDown())
+		{
+			if (FMath::Abs(DragDelta.X) > FMath::Abs(DragDelta.Y))
+			{
+				ActiveHandle = EMGFXShapeTransformHandle::TranslateX;
+			}
+			else if (FMath::Abs(DragDelta.X) < FMath::Abs(DragDelta.Y))
+			{
+				ActiveHandle = EMGFXShapeTransformHandle::TranslateY;
+			}
+		}
+
+		// clamp delta to axis
+		const bool bIsShiftConstrainingAxis = MouseEvent.IsShiftDown() && ActiveHandle.GetValue() == EMGFXShapeTransformHandle::TranslateXY;
+
 		if (ActiveHandle.GetValue() == EMGFXShapeTransformHandle::TranslateX)
 		{
 			DragDelta *= FVector2D(1.f, 0.f);
@@ -111,8 +126,6 @@ FReply SMGFXShapeTransformHandle::OnMouseMove(const FGeometry& MyGeometry, const
 
 		const FTransform2D DeltaTransform = FTransform2D(DragDelta);
 		const FTransform2D NewTransform = DragStartTransform.Concatenate(DeltaTransform);
-
-		UE_LOG(LogTemp, Log, TEXT("Move: %s"), *DragDelta.ToString());
 
 		OnMoveTransform.ExecuteIfBound(NewTransform);
 	}
@@ -126,9 +139,6 @@ FReply SMGFXShapeTransformHandle::OnMouseMove(const FGeometry& MyGeometry, const
 
 void SMGFXShapeTransformHandle::OnMouseEnter(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
-	UE_LOG(LogTemp, Log, TEXT("Over: "));
-
-
 	SCompoundWidget::OnMouseEnter(MyGeometry, MouseEvent);
 }
 
@@ -151,25 +161,59 @@ int32 SMGFXShapeTransformHandle::OnPaint(const FPaintArgs& Args, const FGeometry
 	++LayerId;
 	if (GetHandleVisibility(EMGFXShapeTransformHandle::TranslateX) == EVisibility::Visible)
 	{
+		const FVector2D EndPoint = FVector2D(100.f, 0.f);
+		const FVector2D Direction = FVector2D(1.f, 0.f);
+		const FVector2D Up = FVector2D(0.f, 1.f);
+
 		FSlateDrawElement::MakeLines(
 			OutDrawElements,
 			LayerId,
 			AllottedGeometry.ToPaintGeometry(),
-			{FVector2D(0.f, 0.f), FVector2D(100.f, 0.f)},
+			{FVector2D::ZeroVector, EndPoint},
 			ESlateDrawEffect::None,
-			GetHandleColor(EMGFXShapeTransformHandle::TranslateX).GetSpecifiedColor()
+			GetHandleColor(EMGFXShapeTransformHandle::TranslateX).GetSpecifiedColor(),
+			true,
+			HandleLineWidth
+		);
+		// arrow head
+		FSlateDrawElement::MakeLines(
+			OutDrawElements,
+			LayerId,
+			AllottedGeometry.ToPaintGeometry(),
+			{EndPoint - Direction * ArrowSize + Up * ArrowSize, EndPoint, EndPoint - Direction * ArrowSize - Up * ArrowSize},
+			ESlateDrawEffect::None,
+			GetHandleColor(EMGFXShapeTransformHandle::TranslateX).GetSpecifiedColor(),
+			true,
+			HandleLineWidth
 		);
 	}
 
 	if (GetHandleVisibility(EMGFXShapeTransformHandle::TranslateY) == EVisibility::Visible)
 	{
+		const FVector2D EndPoint = FVector2D(0.f, -100.f);
+		const FVector2D Direction = FVector2D(0.f, -1.f);
+		const FVector2D Up = FVector2D(1.f, 0.f);
+
 		FSlateDrawElement::MakeLines(
 			OutDrawElements,
 			LayerId,
 			AllottedGeometry.ToPaintGeometry(),
-			{FVector2D(0.f, 0.f), FVector2D(0.f, -100.f)},
+			{FVector2D::ZeroVector, EndPoint},
 			ESlateDrawEffect::None,
-			GetHandleColor(EMGFXShapeTransformHandle::TranslateY).GetSpecifiedColor()
+			GetHandleColor(EMGFXShapeTransformHandle::TranslateY).GetSpecifiedColor(),
+			true,
+			HandleLineWidth
+		);
+		// arrow head
+		FSlateDrawElement::MakeLines(
+			OutDrawElements,
+			LayerId,
+			AllottedGeometry.ToPaintGeometry(),
+			{EndPoint - Direction * ArrowSize + Up * ArrowSize, EndPoint, EndPoint - Direction * ArrowSize - Up * ArrowSize},
+			ESlateDrawEffect::None,
+			GetHandleColor(EMGFXShapeTransformHandle::TranslateY).GetSpecifiedColor(),
+			true,
+			HandleLineWidth
 		);
 	}
 
@@ -241,6 +285,7 @@ FReply SMGFXShapeTransformHandle::StartDragging(EMGFXShapeTransformHandle Handle
 {
 	bIsDragging = true;
 	ActiveHandle = HandleType;
+	OriginalActiveHandle = ActiveHandle;
 
 	DragStartPosition = MouseEvent.GetScreenSpacePosition();
 	DragStartTransform = OnGetTransform.Execute();
@@ -265,6 +310,7 @@ FReply SMGFXShapeTransformHandle::FinishDragging()
 
 	// update active handle, which could be nothing now
 	ActiveHandle = GetHoveredHandle();
+	OriginalActiveHandle.Reset();
 
 	bIsDragging = false;
 

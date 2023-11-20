@@ -112,7 +112,7 @@ UMGFXMaterial* SMGFXMaterialEditorCanvas::GetMGFXMaterial() const
 FReply SMGFXMaterialEditorCanvas::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
 	// middle mouse to drag move the selected layer
-	if (MouseEvent.GetEffectingButton() == EKeys::MiddleMouseButton)
+	if (MouseEvent.GetEffectingButton() == EKeys::MiddleMouseButton && !MouseEvent.IsAltDown())
 	{
 		if (GetSelectedLayer() && TransformHandle.IsValid())
 		{

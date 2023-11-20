@@ -25,7 +25,9 @@ public:
 public:
 	SLATE_BEGIN_ARGS(SMGFXShapeTransformHandle)
 			: _HandleLength(100.f),
-			  _HandleWidth(12.f)
+			  _HandleWidth(14.f),
+			  _HandleLineWidth(1.f),
+			  _ArrowSize(7.f)
 		{
 		}
 
@@ -34,6 +36,8 @@ public:
 		SLATE_EVENT(FDragFinishedDelegate, OnDragFinished)
 		SLATE_ARGUMENT(float, HandleLength)
 		SLATE_ARGUMENT(float, HandleWidth)
+		SLATE_ARGUMENT(float, HandleLineWidth)
+		SLATE_ARGUMENT(float, ArrowSize)
 
 	SLATE_END_ARGS()
 
@@ -73,7 +77,26 @@ protected:
 	TSharedPtr<SWidget> TranslateXHandle;
 	TSharedPtr<SWidget> TranslateYHandle;
 
+	/**
+	 * If using modifier keys to affect the active handle type, this will be the original type without modifiers.
+	 * Only set during drag operations.
+	 */
+	TOptional<EMGFXShapeTransformHandle> OriginalActiveHandle;
+
+	/** The currently active handle type being hovered or dragged. */
 	TOptional<EMGFXShapeTransformHandle> ActiveHandle;
+
+	/** The length of handles. */
+	float HandleLength;
+
+	/** Width of handles for hit testing purposes. */
+	float HandleWidth;
+
+	/** The visual width of handle lines. */
+	float HandleLineWidth;
+
+	/** The visual size of arrow heads. */
+	float ArrowSize;
 
 	bool bIsDragging = false;
 
