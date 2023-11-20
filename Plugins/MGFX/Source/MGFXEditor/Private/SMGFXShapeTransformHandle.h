@@ -5,11 +5,23 @@
 #include "CoreMinimal.h"
 #include "Widgets/SCompoundWidget.h"
 
+
+enum class EMGFXShapeTransformMode : uint8
+{
+	Translate,
+	Rotate,
+	Scale
+};
+
 enum class EMGFXShapeTransformHandle : uint8
 {
 	TranslateX,
 	TranslateY,
 	TranslateXY,
+	Rotate,
+	ScaleX,
+	ScaleY,
+	ScaleXY,
 };
 
 /**
@@ -24,13 +36,14 @@ public:
 
 public:
 	SLATE_BEGIN_ARGS(SMGFXShapeTransformHandle)
-			: _HandleLength(100.f),
+			: _HandleLength(80.f),
 			  _HandleWidth(14.f),
-			  _HandleLineWidth(1.f),
-			  _ArrowSize(7.f)
+			  _HandleLineWidth(2.f),
+			  _ArrowSize(14.f)
 		{
 		}
 
+		SLATE_ATTRIBUTE(EMGFXShapeTransformMode, Mode)
 		SLATE_EVENT(FGetTransformDelegate, OnGetTransform)
 		SLATE_EVENT(FMoveTransformDelegate, OnMoveTransform)
 		SLATE_EVENT(FDragFinishedDelegate, OnDragFinished)
@@ -52,6 +65,14 @@ public:
 	virtual void OnMouseLeave(const FPointerEvent& MouseEvent) override;
 	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements,
 	                      int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
+
+	/** Paint an arrow with a direction and color. Uses the HandleLength and ArrowSize properties. */
+	int32 PaintTranslateHandle(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements,
+	                           int32 LayerId, const FVector2D& Direction, const FLinearColor& Color) const;
+
+	/** Paint a rotation handle. */
+	int32 PaintRotateHandle(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements,
+	                        int32 LayerId, const FLinearColor& Color) const;
 
 	/** Return true if two handle types are equal, or if HandleType is a sub category of OtherHandleType, e.g. TranslateX is a subtype of TranslateXY. */
 	bool IsMatchingOrRelevantHandle(EMGFXShapeTransformHandle HandleType, EMGFXShapeTransformHandle OtherHandleType) const;
@@ -85,6 +106,9 @@ protected:
 
 	/** The currently active handle type being hovered or dragged. */
 	TOptional<EMGFXShapeTransformHandle> ActiveHandle;
+
+	/** The current transform mode, e.g. translate, rotate, or scale. */
+	TAttribute<EMGFXShapeTransformMode> Mode;
 
 	/** The length of handles. */
 	float HandleLength;
