@@ -24,6 +24,11 @@ FMGFXEditorStyle::FMGFXEditorStyle()
 
 		Set(TEXT("ArtboardBackground"), new FSlateColorBrush(FLinearColor(0.005f, 0.005f, 0.005f)));
 
+		// TODO: use an invisible brush? paint the handle manually?
+		auto* TranslateBrush = new FSlateColorBrush(FLinearColor::White);
+		TranslateBrush->SetImageSize(FVector2D(100.f, 6.f));
+		Set(TEXT("ShapeTransformHandle.Translate"), TranslateBrush);
+
 		const FSlateColor SelectionColor = FAppStyle::GetSlateColor("SelectionColor");
 		const FSlateColor SelectorColor = FAppStyle::GetSlateColor("SelectorColor");
 
