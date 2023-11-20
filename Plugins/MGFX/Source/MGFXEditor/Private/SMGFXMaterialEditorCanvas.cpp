@@ -208,6 +208,11 @@ void SMGFXMaterialEditorCanvas::CreateEditingWidgets()
 	TransformHandle.Reset();
 	EditingWidgetCanvas->ClearChildren();
 
+	if (!GetSelectedLayer())
+	{
+		return;
+	}
+
 	// create transform handle
 	SAssignNew(TransformHandle, SMGFXShapeTransformHandle)
 		.OnGetTransform(this, &SMGFXMaterialEditorCanvas::OnGetLayerTransform)
