@@ -51,6 +51,7 @@ TSharedRef<FMGFXMaterialLayerDragDropOp> FMGFXMaterialLayerDragDropOp::New(const
 		Operation->CurrentIconBrush = FAppStyle::GetBrush(TEXT("LevelEditor.Tabs.Layers"));
 		Operation->Transaction = new FScopedTransaction(LOCTEXT("MoveLayers", "Move Layers"));
 	}
+	Operation->SetupDefaults();
 
 	// add entry for each layer
 	for (const auto& Layer : InLayers)
@@ -277,11 +278,22 @@ void SMGFXMaterialLayerRow::HandleDragEnter(const FDragDropEvent& DragDropEvent)
 
 void SMGFXMaterialLayerRow::HandleDragLeave(const FDragDropEvent& DragDropEvent)
 {
+	// reset to default hover icon and text
+	if (const TSharedPtr<FDecoratedDragDropOp> DecoratedDragDropOp = DragDropEvent.GetOperationAs<FDecoratedDragDropOp>())
+	{
+		DecoratedDragDropOp->ResetToDefaultToolTip();
+	}
 }
 
 TOptional<EItemDropZone> SMGFXMaterialLayerRow::HandleCanAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone,
                                                                     TObjectPtr<UMGFXMaterialLayer> TargetItem)
 {
+	// reset to default hover icon and text before evaluating each time
+	if (const TSharedPtr<FDecoratedDragDropOp> DecoratedDragDropOp = DragDropEvent.GetOperationAs<FDecoratedDragDropOp>())
+	{
+		DecoratedDragDropOp->ResetToDefaultToolTip();
+	}
+
 	if (!TargetItem)
 	{
 		return TOptional<EItemDropZone>();
@@ -290,8 +302,30 @@ TOptional<EItemDropZone> SMGFXMaterialLayerRow::HandleCanAcceptDrop(const FDragD
 	// handle layer dragging
 	if (TSharedPtr<FMGFXMaterialLayerDragDropOp> LayerDragDropOp = DragDropEvent.GetOperationAs<FMGFXMaterialLayerDragDropOp>())
 	{
-		// TODO
+		// iterating the entire items list multiple times so that we can present the most relevant info first,
+		// instead of whichever layer first triggers an issue
+
+		// check for drag onto self
+		for (const FMGFXMaterialLayerDragDropOp::FItem& DraggedItem : LayerDragDropOp->DraggedItems)
+		{
+			if (DraggedItem.Layer == TargetItem)
+			{
+				// can't drag a layer onto itself, but not important enough to warn about
+				return TOptional<EItemDropZone>();
+			}
+		}
+
 		// check for circular references
+		for (const FMGFXMaterialLayerDragDropOp::FItem& DraggedItem : LayerDragDropOp->DraggedItems)
+		{
+			if (DraggedItem.Layer->IsParentLayer(TargetItem))
+			{
+				// target item is a child of the dragged layer, can't parent to child of self
+				LayerDragDropOp->CurrentIconBrush = FAppStyle::GetBrush(TEXT("Graph.ConnectorFeedback.Error"));
+				LayerDragDropOp->CurrentHoverText = LOCTEXT("CantMakeLayerChildOfChildren", "Can't make layer a child of its children.");
+				return TOptional<EItemDropZone>();
+			}
+		}
 
 		// TODO
 		// check that the drag is within the same material

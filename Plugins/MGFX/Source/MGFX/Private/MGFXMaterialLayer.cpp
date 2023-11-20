@@ -140,6 +140,23 @@ void UMGFXMaterialLayer::SetParentLayer(UMGFXMaterialLayer* NewParent)
 	Parent = NewParent;
 }
 
+bool UMGFXMaterialLayer::IsParentLayer(UMGFXMaterialLayer* Layer) const
+{
+	check(Layer);
+
+	const UMGFXMaterialLayer* ParentLayer = Layer->GetParentLayer();
+	while (ParentLayer)
+	{
+		if (ParentLayer == this)
+		{
+			return true;
+		}
+		ParentLayer = ParentLayer->GetParentLayer();
+	}
+
+	return false;
+}
+
 void UMGFXMaterialLayer::PostLoad()
 {
 	UObject::PostLoad();

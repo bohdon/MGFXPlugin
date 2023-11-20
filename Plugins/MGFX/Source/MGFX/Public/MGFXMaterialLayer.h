@@ -99,13 +99,16 @@ public:
 
 	void SetParentLayer(UMGFXMaterialLayer* NewParent);
 
-	virtual void PostLoad() override;
+	/** Return true if this layer is a parent (either immediate or ancestor) of a layer. */
+	bool IsParentLayer(UMGFXMaterialLayer* Layer) const;
 
 	void GetAllLayers(TArray<TObjectPtr<UMGFXMaterialLayer>>& OutLayers) const;
 
 	// IMGFXMaterialLayerParentInterface
 	virtual const TArray<TObjectPtr<UMGFXMaterialLayer>>& GetLayers() const override { return Children; }
 	virtual TArray<TObjectPtr<UMGFXMaterialLayer>>& GetMutableLayers() override { return Children; }
+
+	virtual void PostLoad() override;
 
 protected:
 	UPROPERTY()
