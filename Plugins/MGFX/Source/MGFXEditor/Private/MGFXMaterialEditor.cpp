@@ -822,59 +822,116 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_Shape(FMGFXMaterialBuilder& B
 
 	TArray<FMGFXMaterialShapeInput> Inputs = Shape->GetInputs();
 
+	int32 ParamSortPriority = 50;
+
+	// keep track of original Y so it can be restored after generating inputs
+	const int32 OrigNodePoseY = NodePos.Y;
+
 	// create shape inputs
 	TArray<UMaterialExpression*> InputExps;
-	FVector2D NodePosOffset = FVector2D(0.f, GridSize * 8);
+	NodePos.Y += GridSize * 8;
 	for (const FMGFXMaterialShapeInput& Input : Inputs)
 	{
-		// determine expression class by input type
-		TSubclassOf<UMaterialExpression> InputExpClass = nullptr;
-		switch (Input.Type)
-		{
-		case EMGFXMaterialShapeInputType::Float:
-			InputExpClass = UMaterialExpressionConstant::StaticClass();
-			break;
-		case EMGFXMaterialShapeInputType::Vector2:
-			InputExpClass = UMaterialExpressionConstant2Vector::StaticClass();
-			break;
-		case EMGFXMaterialShapeInputType::Vector3:
-			InputExpClass = UMaterialExpressionConstant3Vector::StaticClass();
-			break;
-		case EMGFXMaterialShapeInputType::Vector4:
-			InputExpClass = UMaterialExpressionConstant4Vector::StaticClass();
-			break;
-		}
-		check(InputExpClass);
-
 		const FLinearColor Value = Input.Value;
 
-		UMaterialExpression* InputExp = Builder.Create(InputExpClass, NodePos + NodePosOffset);
-		check(InputExp);
-		InputExps.Add(InputExp);
+		// TODO: allow user to mark as exposed
+		bool bShouldBeParameter = true;
 
-		if (auto* ConstExp = Cast<UMaterialExpressionConstant>(InputExp))
+		if (bShouldBeParameter)
 		{
-			SET_PROP(ConstExp, R, Value.R);
-		}
-		else if (auto* Const2Exp = Cast<UMaterialExpressionConstant2Vector>(InputExp))
-		{
-			SET_PROP(Const2Exp, R, Value.R);
-			SET_PROP(Const2Exp, G, Value.G);
-		}
-		else if (auto* Const3Exp = Cast<UMaterialExpressionConstant3Vector>(InputExp))
-		{
-			SET_PROP(Const3Exp, Constant, Value);
-		}
-		else if (auto* Const4Exp = Cast<UMaterialExpressionConstant4Vector>(InputExp))
-		{
-			SET_PROP(Const4Exp, Constant, Value);
-		}
+			// setup input as scalar params, Vector2's will be represented by 2 scalar params
+			UMaterialExpression* InputExp;
+			switch (Input.Type)
+			{
+			default:
+			case EMGFXMaterialShapeInputType::Float:
+				InputExp = Builder.Create<UMaterialExpressionScalarParameter>(NodePos);
+				break;
+			case EMGFXMaterialShapeInputType::Vector2:
+				InputExp = Generate_Vector2Parameter(Builder, NodePos, FVector2f(Input.Value.R, Input.Value.G),
+				                                     ParamPrefix, ParamGroup, ParamSortPriority, Input.Name + TEXT("X"), Input.Name + TEXT("Y"));
+				++ParamSortPriority;
+				break;
+			case EMGFXMaterialShapeInputType::Vector3:
+			case EMGFXMaterialShapeInputType::Vector4:
+				// its normal to ignore the extra A channel for a Vector3 param
+				InputExp = Builder.Create<UMaterialExpressionVectorParameter>(NodePos);
+				break;
+			}
+			check(InputExp);
 
-		NodePosOffset.Y += GridSize * 8;
+			InputExps.Add(InputExp);
+
+			// configure parameter
+			// Vector2 params will already be configured, and the InputExp is actually an append.
+			if (UMaterialExpressionParameter* ParamExp = Cast<UMaterialExpressionParameter>(InputExp))
+			{
+				// TODO: include Shape name in the prefix, since there may be multiple shapes
+				Builder.ConfigureParameter(ParamExp, FName(ParamPrefix + Input.Name), ParamGroup, ParamSortPriority);
+				++ParamSortPriority;
+			}
+
+			if (auto* ConstExp = Cast<UMaterialExpressionScalarParameter>(InputExp))
+			{
+				SET_PROP(ConstExp, DefaultValue, Value.R);
+			}
+			else if (auto* Const2Exp = Cast<UMaterialExpressionVectorParameter>(InputExp))
+			{
+				SET_PROP(Const2Exp, DefaultValue, Value);
+			}
+
+			NodePos.Y += GridSize * 8;
+		}
+		else
+		{
+			// setup input as constant expressions
+			TSubclassOf<UMaterialExpression> InputExpClass = nullptr;
+			switch (Input.Type)
+			{
+			case EMGFXMaterialShapeInputType::Float:
+				InputExpClass = UMaterialExpressionConstant::StaticClass();
+				break;
+			case EMGFXMaterialShapeInputType::Vector2:
+				InputExpClass = UMaterialExpressionConstant2Vector::StaticClass();
+				break;
+			case EMGFXMaterialShapeInputType::Vector3:
+				InputExpClass = UMaterialExpressionConstant3Vector::StaticClass();
+				break;
+			case EMGFXMaterialShapeInputType::Vector4:
+				InputExpClass = UMaterialExpressionConstant4Vector::StaticClass();
+				break;
+			}
+			check(InputExpClass);
+
+			UMaterialExpression* InputExp = Builder.Create(InputExpClass, NodePos);
+			check(InputExp);
+			InputExps.Add(InputExp);
+
+			if (auto* ConstExp = Cast<UMaterialExpressionConstant>(InputExp))
+			{
+				SET_PROP(ConstExp, R, Value.R);
+			}
+			else if (auto* Const2Exp = Cast<UMaterialExpressionConstant2Vector>(InputExp))
+			{
+				SET_PROP(Const2Exp, R, Value.R);
+				SET_PROP(Const2Exp, G, Value.G);
+			}
+			else if (auto* Const3Exp = Cast<UMaterialExpressionConstant3Vector>(InputExp))
+			{
+				SET_PROP(Const3Exp, Constant, Value);
+			}
+			else if (auto* Const4Exp = Cast<UMaterialExpressionConstant4Vector>(InputExp))
+			{
+				SET_PROP(Const4Exp, Constant, Value);
+			}
+
+			NodePos.Y += GridSize * 8;
+		}
 	}
 	check(Inputs.Num() == InputExps.Num());
 
 	NodePos.X += GridSize * 20;
+	NodePos.Y = OrigNodePoseY;
 
 	// create shape function
 	UMaterialExpressionMaterialFunctionCall* ShapeExp = Builder.Create<UMaterialExpressionMaterialFunctionCall>(NodePos);
