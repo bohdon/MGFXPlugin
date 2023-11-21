@@ -107,6 +107,7 @@ TSharedRef<SWidget> SMGFXMaterialEditorCanvas::CreateOverlayUI()
 			// toolbar for transform modes, etc
 			+ SHorizontalBox::Slot()
 			  .Padding(0.0f, 2.0f)
+			  .VAlign(VAlign_Center)
 			  .AutoWidth()
 			[
 				SNew(SMGFXMaterialEditorCanvasToolBar)
@@ -115,7 +116,7 @@ TSharedRef<SWidget> SMGFXMaterialEditorCanvas::CreateOverlayUI()
 
 			// zoom menu
 			+ SHorizontalBox::Slot()
-			  .Padding(2.0f, 0.0f)
+			  .Padding(2.0f, 2.0f)
 			  .AutoWidth()
 			[
 				SNew(SComboButton)
