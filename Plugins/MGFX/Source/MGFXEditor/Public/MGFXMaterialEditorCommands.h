@@ -23,7 +23,20 @@ public:
 	{
 	}
 
+	/** Clear and rebuild the generated material. */
 	TSharedPtr<FUICommandInfo> RegenerateMaterial;
+
+	/** Set the canvas view scale to 50% */
+	TSharedPtr<FUICommandInfo> ZoomTo50;
+
+	/** Set the canvas view scale to 100% */
+	TSharedPtr<FUICommandInfo> ZoomTo100;
+
+	/** Set the canvas view scale to 200% */
+	TSharedPtr<FUICommandInfo> ZoomTo200;
+
+	/** Set the canvas view scale to 300% */
+	TSharedPtr<FUICommandInfo> ZoomTo300;
 
 	void RegisterCommands() override;
 };

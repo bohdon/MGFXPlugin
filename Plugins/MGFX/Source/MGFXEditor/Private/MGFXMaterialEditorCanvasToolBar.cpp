@@ -6,6 +6,8 @@
 #include "EditorViewportCommands.h"
 #include "SlateOptMacros.h"
 
+#define LOCTEXT_NAMESPACE "MGFXMaterialEditor"
+
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 void SMGFXMaterialEditorCanvasToolBar::Construct(const FArguments& InArgs)
@@ -16,6 +18,7 @@ void SMGFXMaterialEditorCanvasToolBar::Construct(const FArguments& InArgs)
 	ToolbarBuilder.SetLabelVisibility(EVisibility::Collapsed);
 
 	ToolbarBuilder.SetIsFocusable(false);
+
 	ToolbarBuilder.BeginSection("Transform");
 	{
 		ToolbarBuilder.BeginBlockGroup();
@@ -44,7 +47,6 @@ void SMGFXMaterialEditorCanvasToolBar::Construct(const FArguments& InArgs)
 		ToolbarBuilder.EndBlockGroup();
 		ToolbarBuilder.AddSeparator();
 	}
-
 	ToolbarBuilder.EndSection();
 
 	ChildSlot
@@ -54,3 +56,5 @@ void SMGFXMaterialEditorCanvasToolBar::Construct(const FArguments& InArgs)
 }
 
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
+
+#undef LOCTEXT_NAMESPACE

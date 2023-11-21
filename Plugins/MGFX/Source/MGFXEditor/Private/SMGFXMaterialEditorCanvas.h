@@ -44,10 +44,6 @@ public:
 
 	TSharedPtr<SArtboardPanel> GetArtboardPanel() const { return ArtboardPanel; }
 
-	FText GetZoomText() const;
-
-	FSlateColor GetZoomTextColorAndOpacity() const;
-
 	/** Update the artboard size to match the material. */
 	void UpdateArtboardSize();
 
@@ -90,9 +86,6 @@ protected:
 	/** Animates the width of selection outlines. */
 	FCurveSequence SelectionOutlineAnim;
 
-	/** Animates the opacity of the 'Zoom %' text */
-	FCurveSequence ZoomTextFade;
-
 	/** The current transform editing mode. */
 	EMGFXShapeTransformMode TransformMode;
 
@@ -131,4 +124,11 @@ protected:
 	bool CanSetTransformMode(EMGFXShapeTransformMode NewMode);
 
 	bool IsTransformModeActive(EMGFXShapeTransformMode InMode);
+
+	FText GetZoomPresetsMenULabel() const;
+
+	TSharedRef<SWidget> CreateZoomPresetsMenu();
+
+	/** Set a new view scale for the artboard panel. */
+	void SetZoomAmount(float NewZoomAmount);
 };

@@ -218,7 +218,7 @@ FReply SArtboardPanel::OnMouseMove(const FGeometry& MyGeometry, const FPointerEv
 
 		const FVector2D DeltaViewOffset = (PanStartPosition - MouseEvent.GetScreenSpacePosition()) / MyGeometry.Scale / GetZoomAmount();
 		const FVector2D NewViewOffset = PanViewOffsetStart + DeltaViewOffset;
-		SetViewOffset(NewViewOffset, MyGeometry);
+		SetViewOffsetWithGeometry(NewViewOffset, MyGeometry);
 
 		return FReply::Handled();
 	}
@@ -334,7 +334,12 @@ bool SArtboardPanel::ShouldShowSoftwareCursor() const
 }
 
 
-void SArtboardPanel::SetViewOffset(FVector2D NewViewOffset, const FGeometry& AllottedGeometry)
+void SArtboardPanel::SetViewOffset(FVector2D NewViewOffset)
+{
+	SetViewOffsetWithGeometry(NewViewOffset, GetPaintSpaceGeometry());
+}
+
+void SArtboardPanel::SetViewOffsetWithGeometry(FVector2D NewViewOffset, const FGeometry& AllottedGeometry)
 {
 	// min is the furthest to the bottom-right allowed, which accounts for the widget geometry and current zoom
 	const FVector2D ViewOffsetMin = (-AllottedGeometry.GetLocalSize() + ViewOffsetMargin) / GetZoomAmount();
@@ -355,7 +360,7 @@ void SArtboardPanel::SetViewOffset(FVector2D NewViewOffset, const FGeometry& All
 void SArtboardPanel::CenterView(const FGeometry& AllottedGeometry)
 {
 	const FVector2D NewViewOffset = -AllottedGeometry.GetLocalSize() * 0.5f + (ArtboardSize.Get() * 0.5f);
-	SetViewOffset(NewViewOffset, AllottedGeometry);
+	SetViewOffsetWithGeometry(NewViewOffset, AllottedGeometry);
 }
 
 void SArtboardPanel::SetZoomAmount(float NewZoomAmount)
@@ -369,6 +374,19 @@ void SArtboardPanel::SetZoomAmount(float NewZoomAmount)
 	}
 }
 
+void SArtboardPanel::SetZoomAmountPreserveCenter(float NewZoomAmount)
+{
+	// zoom into the center of the view, so view offset will also need to be updated
+	const FVector2D LocalFocalPosition = GetPaintSpaceGeometry().GetLocalSize() * 0.5f;
+	const FVector2D GraphFocalPosition = PanelCoordToGraphCoord(LocalFocalPosition);
+
+	SetZoomAmount(NewZoomAmount);
+
+	// apply new offset
+	const FVector2D NewViewOffset = GraphFocalPosition - LocalFocalPosition / GetZoomAmount();
+	SetViewOffset(NewViewOffset);
+}
+
 void SArtboardPanel::ApplyZoomDelta(float ZoomDelta, const FVector2D& LocalFocalPosition, const FGeometry& AllottedGeometry)
 {
 	// we want to zoom into this point; i.e. keep it the same fraction offset into the panel
@@ -379,7 +397,7 @@ void SArtboardPanel::ApplyZoomDelta(float ZoomDelta, const FVector2D& LocalFocal
 
 	// adjust offset to zoom around the target position
 	const FVector2D NewViewOffset = GraphFocalPosition - LocalFocalPosition / GetZoomAmount();
-	SetViewOffset(NewViewOffset, AllottedGeometry);
+	SetViewOffsetWithGeometry(NewViewOffset, AllottedGeometry);
 }
 
 FVector2D SArtboardPanel::PanelCoordToGraphCoord(const FVector2D& PanelPosition) const

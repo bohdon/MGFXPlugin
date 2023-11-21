@@ -121,7 +121,9 @@ public:
 
 	FVector2D GetViewOffset() const { return ViewOffset; }
 
-	void SetViewOffset(FVector2D NewViewOffset, const FGeometry& AllottedGeometry);
+	void SetViewOffset(FVector2D NewViewOffset);
+
+	void SetViewOffsetWithGeometry(FVector2D NewViewOffset, const FGeometry& AllottedGeometry);
 
 	/** Recenter the artboard in the current view. */
 	void CenterView(const FGeometry& AllottedGeometry);
@@ -129,6 +131,9 @@ public:
 	float GetZoomAmount() const { return ZoomAmount; }
 
 	void SetZoomAmount(float NewZoomAmount);
+
+	/** Set the zoom amount, but adjust the view offset to zoom in on the center of the view. */
+	void SetZoomAmountPreserveCenter(float NewZoomAmount);
 
 	void ApplyZoomDelta(float ZoomDelta, const FVector2D& LocalFocalPosition, const FGeometry& AllottedGeometry);
 
