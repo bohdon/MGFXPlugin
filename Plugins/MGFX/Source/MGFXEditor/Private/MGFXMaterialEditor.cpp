@@ -560,12 +560,28 @@ void FMGFXMaterialEditor::Generate_AddUVsBoilerplate(FMGFXMaterialBuilder& Build
 
 	// compute common filter width to use for all shapes based on canvas resolution
 	UMaterialExpression* FilterWidthExp = nullptr;
+	// the output from the filter width expression to use, which may vary
+	FString FilterWidthOutput = FString();
 
 	if (MGFXMaterial->bComputeFilterWidth)
 	{
+		// create bias constant (even if its unused)
+		UMaterialExpressionConstant* FilterWidthBiasExp = Builder.Create<UMaterialExpressionConstant>(NodePos);
+		SET_PROP(FilterWidthBiasExp, R, MGFXMaterial->FilterWidthBias);
+
+		NodePos.X += GridSize * 15;
+
+		// create filter width func
 		UMaterialExpressionMaterialFunctionCall* FilterWidthFuncExp = Builder.CreateFunction(
 			NodePos, TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_FilterWidth.MF_MGFX_FilterWidth")));
 		Builder.Connect(OutputRerouteExp, "", FilterWidthFuncExp, "");
+		Builder.Connect(FilterWidthBiasExp, "", FilterWidthFuncExp, "Bias");
+
+		// only use biased output if not zero, otherwise optimize out
+		if (!FMath::IsNearlyZero(MGFXMaterial->FilterWidthBias))
+		{
+			FilterWidthOutput = FString("Biased");
+		}
 
 		NodePos.X += GridSize * 15;
 
@@ -573,12 +589,13 @@ void FMGFXMaterialEditor::Generate_AddUVsBoilerplate(FMGFXMaterialBuilder& Build
 		if (!FMath::IsNearlyEqual(MGFXMaterial->FilterWidthScale, 1.f))
 		{
 			UMaterialExpressionMultiply* FilterWidthScaleExp = Builder.Create<UMaterialExpressionMultiply>(NodePos);
-			Builder.Connect(FilterWidthFuncExp, "", FilterWidthScaleExp, "");
+			Builder.Connect(FilterWidthFuncExp, FilterWidthOutput, FilterWidthScaleExp, "");
 			SET_PROP(FilterWidthScaleExp, ConstB, MGFXMaterial->FilterWidthScale);
 
 			NodePos.X += GridSize * 15;
 
 			FilterWidthExp = FilterWidthScaleExp;
+			FilterWidthOutput = "";
 		}
 		else
 		{
@@ -597,7 +614,7 @@ void FMGFXMaterialEditor::Generate_AddUVsBoilerplate(FMGFXMaterialBuilder& Build
 
 	// add filter width reroute
 	UMaterialExpressionNamedRerouteDeclaration* FilterWidthRerouteExp = Builder.CreateNamedReroute(NodePos, Reroute_FilterWidth);
-	Builder.Connect(FilterWidthExp, "", FilterWidthRerouteExp, "");
+	Builder.Connect(FilterWidthExp, FilterWidthOutput, FilterWidthRerouteExp, "");
 }
 
 void FMGFXMaterialEditor::Generate_Layers(FMGFXMaterialBuilder& Builder)
