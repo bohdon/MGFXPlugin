@@ -13,6 +13,10 @@
 class MGFXEDITOR_API SArtboardPanel : public SPanel
 {
 public:
+	DECLARE_DELEGATE_OneParam(FViewOffsetChangedDelegate, FVector2D /*NewViewOffset*/);
+	DECLARE_DELEGATE_OneParam(FZoomChangedDelegate, float /*NewZoomAmount*/);
+
+public:
 	/**
 	 * An SArtboardPanel slot. Contains a position and size.
 	 */
@@ -74,6 +78,8 @@ public:
 		SLATE_ATTRIBUTE(const FSlateBrush*, BackgroundBrush)
 		SLATE_ATTRIBUTE(bool, bShowArtboardBorder)
 		SLATE_SLOT_ARGUMENT(FSlot, Slots)
+		SLATE_EVENT(FViewOffsetChangedDelegate, OnViewOffsetChanged)
+		SLATE_EVENT(FZoomChangedDelegate, OnZoomChanged)
 
 	SLATE_END_ARGS()
 
@@ -194,6 +200,10 @@ protected:
 	TAttribute<bool> bShowArtboardBorder;
 
 	bool bIsViewOffsetInitialized;
+
+	FViewOffsetChangedDelegate OnViewOffsetChangedEvent;
+
+	FZoomChangedDelegate OnZoomChangedEvent;
 
 	virtual void OnViewOffsetChanged();
 

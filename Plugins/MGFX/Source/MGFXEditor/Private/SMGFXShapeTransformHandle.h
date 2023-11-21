@@ -8,6 +8,7 @@
 
 enum class EMGFXShapeTransformMode : uint8
 {
+	Select,
 	Translate,
 	Rotate,
 	Scale

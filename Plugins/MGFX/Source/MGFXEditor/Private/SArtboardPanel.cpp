@@ -57,6 +57,8 @@ void SArtboardPanel::Construct(const FArguments& InArgs)
 	ZoomAmountMax = InArgs._ZoomAmountMax;
 	BackgroundBrush = InArgs._BackgroundBrush;
 	bShowArtboardBorder = InArgs._bShowArtboardBorder;
+	OnViewOffsetChangedEvent = InArgs._OnViewOffsetChanged;
+	OnZoomChangedEvent = InArgs._OnZoomChanged;
 
 	Children.AddSlots(MoveTemp(const_cast<TArray<FSlot::FSlotArguments>&>(InArgs._Slots)));
 }
@@ -373,7 +375,7 @@ void SArtboardPanel::ApplyZoomDelta(float ZoomDelta, const FVector2D& LocalFocal
 	const FVector2D GraphFocalPosition = PanelCoordToGraphCoord(LocalFocalPosition);
 
 	// instead of just adding, apply proportional so 'zoom speed' is the same at all zoom levels
-	SetZoomAmount(ZoomAmount *= (1.f + ZoomDelta));
+	SetZoomAmount(ZoomAmount * (1.f + ZoomDelta));
 
 	// adjust offset to zoom around the target position
 	const FVector2D NewViewOffset = GraphFocalPosition - LocalFocalPosition / GetZoomAmount();
@@ -402,10 +404,12 @@ FTransform2D SArtboardPanel::GetGraphToPanelTransform() const
 
 void SArtboardPanel::OnViewOffsetChanged()
 {
+	OnViewOffsetChangedEvent.ExecuteIfBound(ViewOffset);
 }
 
 void SArtboardPanel::OnZoomChanged()
 {
+	OnZoomChangedEvent.ExecuteIfBound(ZoomAmount);
 }
 
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION

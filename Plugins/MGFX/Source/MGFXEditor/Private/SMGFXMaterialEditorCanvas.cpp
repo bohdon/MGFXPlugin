@@ -3,11 +3,14 @@
 
 #include "SMGFXMaterialEditorCanvas.h"
 
+#include "EditorViewportCommands.h"
 #include "MGFXMaterial.h"
 #include "MGFXMaterialEditor.h"
+#include "MGFXMaterialEditorCanvasToolBar.h"
 #include "SArtboardPanel.h"
 #include "SlateOptMacros.h"
 #include "SMGFXShapeTransformHandle.h"
+#include "Styling/ToolBarStyle.h"
 #include "Widgets/SCanvas.h"
 
 
@@ -33,8 +36,14 @@ void SMGFXMaterialEditorCanvas::Construct(const FArguments& InArgs)
 	PreviewImageBrush.SetResourceObject(MGFXMaterialEditor.Pin()->GetGeneratedMaterial());
 
 	SelectionOutlineAnim = FCurveSequence(0.0f, 0.15f, ECurveEaseFunction::QuadOut);
+	ZoomTextFade = FCurveSequence(0.0f, 1.0f);
+	ZoomTextFade.JumpToEnd();
 
 	UMGFXMaterial* MGFXMaterial = MGFXMaterialEditor.Pin()->GetMGFXMaterial();
+
+	CommandList = MakeShareable(new FUICommandList);
+	FEditorViewportCommands::Register();
+	BindCommands();
 
 	ChildSlot
 	[
@@ -47,6 +56,8 @@ void SMGFXMaterialEditorCanvas::Construct(const FArguments& InArgs)
 			.BackgroundBrush(this, &SMGFXMaterialEditorCanvas::GetArtboardBackground)
 			.bShowArtboardBorder(this, &SMGFXMaterialEditorCanvas::ShouldShowArtboardBorder)
 			.ZoomAmountMax(100.f)
+			.OnViewOffsetChanged(this, &SMGFXMaterialEditorCanvas::OnViewOffsetChanged)
+			.OnZoomChanged(this, &SMGFXMaterialEditorCanvas::OnZoomChanged)
 			.Clipping(EWidgetClipping::ClipToBounds)
 
 			// add preview material image, full size of the artboard
@@ -63,7 +74,56 @@ void SMGFXMaterialEditorCanvas::Construct(const FArguments& InArgs)
 		[
 			SAssignNew(EditingWidgetCanvas, SCanvas)
 		]
+
+		+ SOverlay::Slot()
+		[
+			CreateOverlayUI()
+		]
 	];
+}
+
+TSharedRef<SWidget> SMGFXMaterialEditorCanvas::CreateOverlayUI()
+{
+	const FToolBarStyle& ToolBarStyle = FAppStyle::Get().GetWidgetStyle<FToolBarStyle>("EditorViewportToolBar");
+
+	return SNew(SOverlay)
+
+		// top bar with buttons for view and editing options
+		+ SOverlay::Slot()
+		  .HAlign(HAlign_Fill)
+		  .VAlign(VAlign_Top)
+		[
+			SNew(SHorizontalBox)
+
+			// zoom text
+			+ SHorizontalBox::Slot()
+			  .AutoWidth()
+			  .VAlign(VAlign_Center)
+			  .Padding(6, 2, 0, 0)
+			[
+				SNew(STextBlock)
+				.TextStyle(FAppStyle::Get(), "Graph.ZoomText")
+				.Text(this, &SMGFXMaterialEditorCanvas::GetZoomText)
+				.ColorAndOpacity(this, &SMGFXMaterialEditorCanvas::GetZoomTextColorAndOpacity)
+				.Visibility(EVisibility::SelfHitTestInvisible)
+			]
+
+			// middle fill spacer
+			+ SHorizontalBox::Slot()
+			.FillWidth(1.0f)
+			[
+				SNew(SSpacer)
+				.Size(FVector2D(1, 1))
+			]
+
+			+ SHorizontalBox::Slot()
+			  .Padding(0.0f, 2.0f)
+			  .AutoWidth()
+			[
+				SNew(SMGFXMaterialEditorCanvasToolBar)
+				.CommandList(CommandList)
+			]
+		];
 }
 
 FVector2D SMGFXMaterialEditorCanvas::GetArtboardSize() const
@@ -87,6 +147,21 @@ bool SMGFXMaterialEditorCanvas::ShouldShowArtboardBorder() const
 	// when the preview image doesn't match the current artboard settings, force display the border
 	const SArtboardPanel::FSlot* Slot = ArtboardPanel->GetWidgetSlot(PreviewImage);
 	return Slot->GetSize() != GetArtboardSize();
+}
+
+FText SMGFXMaterialEditorCanvas::GetZoomText() const
+{
+	FNumberFormattingOptions Options;
+	Options.MinimumFractionalDigits = 1;
+	Options.MaximumFractionalDigits = 1;
+
+	const FText ZoomPercentText = FText::AsPercent(ArtboardPanel->GetZoomAmount(), &Options);
+	return FText::Format(NSLOCTEXT("MGFXMaterialEditor", "ZoomTextFormat", "Zoom {0}"), ZoomPercentText);
+}
+
+FSlateColor SMGFXMaterialEditorCanvas::GetZoomTextColorAndOpacity() const
+{
+	return FLinearColor(1, 1, 1, 1.25f - ZoomTextFade.GetLerp());
 }
 
 void SMGFXMaterialEditorCanvas::UpdateArtboardSize()
@@ -124,6 +199,16 @@ FReply SMGFXMaterialEditorCanvas::OnMouseButtonDown(const FGeometry& MyGeometry,
 	}
 
 	return SCompoundWidget::OnMouseButtonDown(MyGeometry, MouseEvent);
+}
+
+FReply SMGFXMaterialEditorCanvas::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
+{
+	if (CommandList->ProcessCommandBindings(InKeyEvent))
+	{
+		return FReply::Handled();
+	}
+
+	return SCompoundWidget::OnKeyDown(MyGeometry, InKeyEvent);
 }
 
 int32 SMGFXMaterialEditorCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect,
@@ -194,6 +279,42 @@ int32 SMGFXMaterialEditorCanvas::PaintSelectionOutline(const FGeometry& Allotted
 	return LayerId;
 }
 
+void SMGFXMaterialEditorCanvas::BindCommands()
+{
+	CommandList->MapAction(
+		FEditorViewportCommands::Get().SelectMode,
+		FExecuteAction::CreateSP(this, &SMGFXMaterialEditorCanvas::SetTransformMode, EMGFXShapeTransformMode::Select),
+		FCanExecuteAction::CreateSP(this, &SMGFXMaterialEditorCanvas::CanSetTransformMode, EMGFXShapeTransformMode::Select),
+		FIsActionChecked::CreateSP(this, &SMGFXMaterialEditorCanvas::IsTransformModeActive, EMGFXShapeTransformMode::Select));
+
+	CommandList->MapAction(
+		FEditorViewportCommands::Get().TranslateMode,
+		FExecuteAction::CreateSP(this, &SMGFXMaterialEditorCanvas::SetTransformMode, EMGFXShapeTransformMode::Translate),
+		FCanExecuteAction::CreateSP(this, &SMGFXMaterialEditorCanvas::CanSetTransformMode, EMGFXShapeTransformMode::Translate),
+		FIsActionChecked::CreateSP(this, &SMGFXMaterialEditorCanvas::IsTransformModeActive, EMGFXShapeTransformMode::Translate));
+
+	CommandList->MapAction(
+		FEditorViewportCommands::Get().RotateMode,
+		FExecuteAction::CreateSP(this, &SMGFXMaterialEditorCanvas::SetTransformMode, EMGFXShapeTransformMode::Rotate),
+		FCanExecuteAction::CreateSP(this, &SMGFXMaterialEditorCanvas::CanSetTransformMode, EMGFXShapeTransformMode::Rotate),
+		FIsActionChecked::CreateSP(this, &SMGFXMaterialEditorCanvas::IsTransformModeActive, EMGFXShapeTransformMode::Rotate));
+
+	CommandList->MapAction(
+		FEditorViewportCommands::Get().ScaleMode,
+		FExecuteAction::CreateSP(this, &SMGFXMaterialEditorCanvas::SetTransformMode, EMGFXShapeTransformMode::Scale),
+		FCanExecuteAction::CreateSP(this, &SMGFXMaterialEditorCanvas::CanSetTransformMode, EMGFXShapeTransformMode::Scale),
+		FIsActionChecked::CreateSP(this, &SMGFXMaterialEditorCanvas::IsTransformModeActive, EMGFXShapeTransformMode::Scale));
+}
+
+void SMGFXMaterialEditorCanvas::OnViewOffsetChanged(FVector2D NewViewOffset)
+{
+}
+
+void SMGFXMaterialEditorCanvas::OnZoomChanged(float NewZoomAmount)
+{
+	ZoomTextFade.Play(this->AsShared());
+}
+
 void SMGFXMaterialEditorCanvas::OnLayerSelectionChanged(const TArray<TObjectPtr<UMGFXMaterialLayer>>& SelectedLayers)
 {
 	SelectionOutlineAnim.Play(SharedThis(this));
@@ -215,6 +336,7 @@ void SMGFXMaterialEditorCanvas::CreateEditingWidgets()
 
 	// create transform handle
 	SAssignNew(TransformHandle, SMGFXShapeTransformHandle)
+		.Mode(this, &SMGFXMaterialEditorCanvas::GetTransformMode)
 		.OnGetTransform(this, &SMGFXMaterialEditorCanvas::OnGetLayerTransform)
 		.OnMoveTransform(this, &SMGFXMaterialEditorCanvas::OnLayerMoveTransform)
 		.OnDragFinished(this, &SMGFXMaterialEditorCanvas::OnLayerMoveFinished);
@@ -298,6 +420,21 @@ UMGFXMaterialLayer* SMGFXMaterialEditorCanvas::GetSelectedLayer() const
 		return SelectedLayers[0];
 	}
 	return nullptr;
+}
+
+void SMGFXMaterialEditorCanvas::SetTransformMode(EMGFXShapeTransformMode NewMode)
+{
+	TransformMode = NewMode;
+}
+
+bool SMGFXMaterialEditorCanvas::CanSetTransformMode(EMGFXShapeTransformMode NewMode)
+{
+	return true;
+}
+
+bool SMGFXMaterialEditorCanvas::IsTransformModeActive(EMGFXShapeTransformMode InMode)
+{
+	return InMode == TransformMode;
 }
 
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
