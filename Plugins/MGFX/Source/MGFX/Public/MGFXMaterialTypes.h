@@ -53,6 +53,12 @@ struct MGFX_API FMGFXShapeTransform2D
 {
 	GENERATED_BODY()
 
+	FMGFXShapeTransform2D()
+	{
+	}
+
+	FMGFXShapeTransform2D(const FTransform2D& InTransform);
+
 	/** When true, all values will be setup as animatable parameters, otherwise they may be optimized out. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool bAnimatable = false;
@@ -68,4 +74,12 @@ struct MGFX_API FMGFXShapeTransform2D
 	FVector2f Scale = FVector2f(1, 1);
 
 	FTransform2D ToTransform2D() const;
+
+	/** Return true if the location, rotation, and scale are equal. */
+	bool IsEqual(const FMGFXShapeTransform2D& Other) const
+	{
+		return Location == Other.Location &&
+			Rotation == Other.Rotation &&
+			Scale == Other.Scale;
+	}
 };

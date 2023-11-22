@@ -80,8 +80,11 @@ public:
 
 	TOptional<EMGFXShapeTransformHandle> GetHoveredHandle() const;
 
+	/** Start a drag operation for the active transform mode. */
+	FReply StartDragging(const FPointerEvent& MouseEvent);
+
 	/** Start dragging this transform handle. */
-	FReply StartDragging(EMGFXShapeTransformHandle HandleType, const FPointerEvent& MouseEvent);
+	FReply StartDragging(EMGFXShapeTransformHandle HandleType, const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
 
 	/** Finish dragging the handle. */
 	FReply FinishDragging();
@@ -98,6 +101,7 @@ public:
 protected:
 	TSharedPtr<SWidget> TranslateXHandle;
 	TSharedPtr<SWidget> TranslateYHandle;
+	TSharedPtr<SWidget> RotateHandle;
 
 	/**
 	 * If using modifier keys to affect the active handle type, this will be the original type without modifiers.
@@ -125,11 +129,23 @@ protected:
 
 	bool bIsDragging = false;
 
-	/** The transform of the object when dragging started. */
+	/**
+	 * The parent transform in which to perform transformations during drag operations.
+	 * Used to allow input coordinates to be converted, rather than performing lossy transformations later.
+	 */
+	FTransform2D DragParentTransform;
+
+	/** The local transform of the object when dragging started. */
 	FTransform2D DragStartTransform;
 
-	/** The absolute position of the mouse when the drag operation started. */
-	FVector2D DragStartPosition;
+	/** The screen position of the mouse when the drag operation started. */
+	FVector2D ScreenDragStartPosition;
+
+	/** The local position of the mouse when the drag operation started. */
+	FVector2D LocalDragStartPosition;
+
+	/** The local position of the mouse during the last mouse move. */
+	FVector2D LocalDragPosition;
 
 	/** The currently active transform transaction. */
 	FScopedTransaction* Transaction;
@@ -139,4 +155,8 @@ protected:
 
 	/** Return whether a handle shold be visible. */
 	EVisibility GetHandleVisibility(EMGFXShapeTransformHandle HandleType) const;
+
+	FReply PerformMouseMoveTranslate(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
+	FReply PerformMouseMoveRotate(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
+	FReply PerformMouseMoveScale(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
 };

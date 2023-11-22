@@ -180,13 +180,13 @@ UMGFXMaterial* SMGFXMaterialEditorCanvas::GetMGFXMaterial() const
 
 FReply SMGFXMaterialEditorCanvas::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
-	// middle mouse to drag move the selected layer
+	// middle mouse to free transform the selected layer.
 	if (MouseEvent.GetEffectingButton() == EKeys::MiddleMouseButton && !MouseEvent.IsAltDown())
 	{
 		if (GetSelectedLayer() && TransformHandle.IsValid())
 		{
-			// TODO: use shift to limit to an axis
-			return TransformHandle->StartDragging(EMGFXShapeTransformHandle::TranslateXY, MouseEvent);
+			// this will either be a TranslateXY, Rotate, or ScaleXY operation
+			return TransformHandle->StartDragging(MouseEvent);
 		}
 
 		return FReply::Handled();
@@ -268,6 +268,16 @@ int32 SMGFXMaterialEditorCanvas::PaintSelectionOutline(const FGeometry& Allotted
 			OutlineColor,
 			true,
 			OutlineWidth);
+
+		FSlateDrawElement::MakeLines(
+			OutDrawElements,
+			LayerId,
+			FPaintGeometry(),
+			{
+				SelectionGeometry.GetAccumulatedRenderTransform().TransformPoint(FVector2D(0.f, 0.f)),
+				SelectionGeometry.GetAccumulatedRenderTransform().TransformPoint(FVector2D(-10.f, -10.f)),
+			},
+			ESlateDrawEffect::None, FLinearColor::White, true, 3.f);
 	}
 
 	return LayerId;
@@ -403,13 +413,18 @@ void SMGFXMaterialEditorCanvas::OnLayerMoveTransform(FTransform2D NewTransform)
 		const FTransform2D ArtboardTransform = ArtboardPanel->GetPanelToGraphTransform();
 		const FTransform2D FullParentTransform = SelectedLayer->GetParentTransform().Concatenate(ArtboardTransform);
 
-		const FTransform2D NewLayerTransform = NewTransform.Concatenate(FullParentTransform.Inverse());
-		const FVector2f NewLocation = FVector2f(NewLayerTransform.GetTranslation());
+		const FTransform2D NewLocalTransform = NewTransform.Concatenate(ArtboardTransform.Inverse());
+		const FMGFXShapeTransform2D NewLayerTransform = FMGFXShapeTransform2D(NewLocalTransform);
 
-		if (NewLocation != SelectedLayer->Transform.Location)
+		UE_LOG(LogTemp, Log, TEXT("%.3f"), NewLayerTransform.Rotation);
+
+		if (!SelectedLayer->Transform.IsEqual(NewLayerTransform))
 		{
+			// TODO: only modify properties that are being edited
 			SelectedLayer->Modify();
-			SelectedLayer->Transform.Location = NewLocation;
+			SelectedLayer->Transform.Location = NewLayerTransform.Location;
+			SelectedLayer->Transform.Rotation = NewLayerTransform.Rotation;
+			SelectedLayer->Transform.Scale = NewLayerTransform.Scale;
 		}
 	}
 }
