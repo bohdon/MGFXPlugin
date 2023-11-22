@@ -223,6 +223,9 @@ protected:
 	 */
 	TOptional<FSlateRenderTransform> GetHandlesRenderTransform() const;
 
+	/** Return the inverse transform including only it's rotation, used to visually rotate the handles. */
+	FTransform2D GetInverseRotationTransform() const;
+
 	/** Return the parent inverse transform including only it's rotation, used to visually rotate the handles. */
 	FTransform2D GetParentInverseRotationTransform() const;
 

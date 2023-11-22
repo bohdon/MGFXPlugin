@@ -80,7 +80,7 @@ void SMGFXShapeTransformHandle::Construct(const FArguments& InArgs)
 		// TODO: actual circle hit test
 		// rotate handle
 		+ SCanvas::Slot()
-		  .Size(FVector2D(HandleLength, HandleLength) * 2.f)
+		  .Size(FVector2D(HandleLength, HandleLength) * 2.f + HandleWidth)
 		  .HAlign(HAlign_Center)
 		  .VAlign(VAlign_Center)
 		[
@@ -310,19 +310,17 @@ int32 SMGFXShapeTransformHandle::OnPaint(const FPaintArgs& Args, const FGeometry
 		const FLinearColor Color = GetHandleColor(EMGFXShapeTransformHandle::Rotate).GetSpecifiedColor();
 		PaintRotateHandle(AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, Color);
 
+		// paint delta angle indicators while dragging
 		if (bIsDragging && LocalDragStartPosition.IsSet())
 		{
-			// paint delta angle indicators
 			const TArray<FVector2D> OrigAnglePoints = {
-				// FVector2D::ZeroVector, LocalDragStartPosition.GetSafeNormal() * HandleLength
-				FVector2D::ZeroVector, LocalDragStartPosition.GetValue()
+				FVector2D::ZeroVector, LocalDragStartPosition.GetValue().GetSafeNormal() * HandleLength
 			};
 			FSlateDrawElement::MakeLines(OutDrawElements, LayerId, AllottedGeometry.ToPaintGeometry(), OrigAnglePoints,
 			                             ESlateDrawEffect::None, FLinearColor::Yellow);
 
 			const TArray<FVector2D> NewAnglePoints = {
-				// FVector2D::ZeroVector, LocalDragPosition.GetSafeNormal() * HandleLength
-				FVector2D::ZeroVector, LocalDragPosition
+				FVector2D::ZeroVector, LocalDragPosition.GetSafeNormal() * HandleLength
 			};
 			FSlateDrawElement::MakeLines(OutDrawElements, LayerId, AllottedGeometry.ToPaintGeometry(), NewAnglePoints,
 			                             ESlateDrawEffect::None, FLinearColor::Yellow);
@@ -376,8 +374,9 @@ int32 SMGFXShapeTransformHandle::PaintTranslateHandle(const FGeometry& AllottedG
 int32 SMGFXShapeTransformHandle::PaintRotateHandle(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements,
                                                    int32 LayerId, const FLinearColor& Color) const
 {
-	// transform to apply to handles so that they are rotated to match parent space
-	const FTransform2D HandlesTransform = GetParentInverseRotationTransform();
+	// transform to apply to handles so that they represent the current rotation
+	// (this is not just the parent transform)
+	const FTransform2D HandlesTransform = GetInverseRotationTransform();
 
 	const FVector2D Direction = FVector2D(1.f, 0.f) * HandleLength;
 	constexpr int32 Resolution = 64;
@@ -393,6 +392,24 @@ int32 SMGFXShapeTransformHandle::PaintRotateHandle(const FGeometry& AllottedGeom
 	FSlateDrawElement::MakeLines(OutDrawElements, LayerId, AllottedGeometry.ToPaintGeometry(), CirclePoints,
 	                             ESlateDrawEffect::None, Color, true, HandleLineWidth);
 
+	// draw tick marks for X and Y axes
+	++LayerId;
+	TArray<FVector2D> XTickPoints = {
+		HandlesTransform.TransformPoint(FVector2D(1.f, 0.f) * HandleLength - FVector2D(5.f, 0.f)),
+		HandlesTransform.TransformPoint(FVector2D(1.f, 0.f) * HandleLength + FVector2D(5.f, 0.f))
+	};
+	const FLinearColor XColor = GetHandleColor(EMGFXShapeTransformHandle::TranslateX).GetSpecifiedColor();
+	FSlateDrawElement::MakeLines(OutDrawElements, LayerId, AllottedGeometry.ToPaintGeometry(), XTickPoints,
+	                             ESlateDrawEffect::None, XColor, true, 10.f);
+
+	TArray<FVector2D> YTickPoints = {
+		HandlesTransform.TransformPoint(FVector2D(0.f, -1.f) * HandleLength - FVector2D(0.f, 5.f)),
+		HandlesTransform.TransformPoint(FVector2D(0.f, -1.f) * HandleLength + FVector2D(0.f, 5.f))
+	};
+	const FLinearColor YColor = GetHandleColor(EMGFXShapeTransformHandle::TranslateY).GetSpecifiedColor();
+	FSlateDrawElement::MakeLines(OutDrawElements, LayerId, AllottedGeometry.ToPaintGeometry(), YTickPoints,
+	                             ESlateDrawEffect::None, YColor, true, 10.f);
+
 	return LayerId;
 }
 
@@ -401,6 +418,13 @@ TOptional<FSlateRenderTransform> SMGFXShapeTransformHandle::GetHandlesRenderTran
 	// just applying rotation, location is already set by the parent widget,
 	// and scale should not be applied so that handle sizes are constant
 	return GetParentInverseRotationTransform();
+}
+
+FTransform2D SMGFXShapeTransformHandle::GetInverseRotationTransform() const
+{
+	const float ParentRotation = ParentTransform.Get().Inverse().GetMatrix().GetRotationAngle();
+	const float LocalRotation = FMath::DegreesToRadians(Rotation.Get());
+	return FTransform2D(FQuat2D(ParentRotation + LocalRotation));
 }
 
 FTransform2D SMGFXShapeTransformHandle::GetParentInverseRotationTransform() const
