@@ -234,14 +234,13 @@ int32 SMGFXMaterialEditorCanvas::PaintSelectionOutline(const FGeometry& Allotted
 			continue;
 		}
 
-		// layer transform and shape bounds
-		const FTransform2D LayerTransform = SelectedLayer->GetTransform();
+		// get layer transform including artboard view offset and scale
+		const FTransform2D ArtboardTransform = ArtboardPanel->GetPanelToGraphTransform();
+		const FTransform2D LayerTransform = SelectedLayer->GetTransform().Concatenate(ArtboardTransform);
+
 		const FBox2D LayerBounds = SelectedLayer->GetBounds();
 
-		// apply artboard pan/zoom transform
-		const FTransform2D ArtboardTransform = ArtboardPanel->GetPanelToGraphTransform();
 		FGeometry LayerGeometry = AllottedGeometry
-		                          .MakeChild(ArtboardTransform, FVector2f::ZeroVector)
 		                          .MakeChild(LayerTransform, FVector2f::ZeroVector)
 		                          .MakeChild(LayerBounds.GetSize(), FSlateLayoutTransform(LayerBounds.Min));
 
@@ -268,16 +267,6 @@ int32 SMGFXMaterialEditorCanvas::PaintSelectionOutline(const FGeometry& Allotted
 			OutlineColor,
 			true,
 			OutlineWidth);
-
-		FSlateDrawElement::MakeLines(
-			OutDrawElements,
-			LayerId,
-			FPaintGeometry(),
-			{
-				SelectionGeometry.GetAccumulatedRenderTransform().TransformPoint(FVector2D(0.f, 0.f)),
-				SelectionGeometry.GetAccumulatedRenderTransform().TransformPoint(FVector2D(-10.f, -10.f)),
-			},
-			ESlateDrawEffect::None, FLinearColor::White, true, 3.f);
 	}
 
 	return LayerId;
@@ -358,8 +347,13 @@ void SMGFXMaterialEditorCanvas::CreateEditingWidgets()
 	// create transform handle
 	SAssignNew(TransformHandle, SMGFXShapeTransformHandle)
 		.Mode(this, &SMGFXMaterialEditorCanvas::GetTransformMode)
-		.OnGetTransform(this, &SMGFXMaterialEditorCanvas::OnGetLayerTransform)
-		.OnMoveTransform(this, &SMGFXMaterialEditorCanvas::OnLayerMoveTransform)
+		.ParentTransform(this, &SMGFXMaterialEditorCanvas::GetTransformHandleParentTransform)
+		.Location(this, &SMGFXMaterialEditorCanvas::GetTransformHandleLocation)
+		.Rotation(this, &SMGFXMaterialEditorCanvas::GetTransformHandleRotation)
+		.Scale(this, &SMGFXMaterialEditorCanvas::GetTransformHandleScale)
+		.OnSetLocation(this, &SMGFXMaterialEditorCanvas::OnSetLayerLocation)
+		.OnSetRotation(this, &SMGFXMaterialEditorCanvas::OnSetLayerRotation)
+		.OnSetScale(this, &SMGFXMaterialEditorCanvas::OnSetLayerScale)
 		.OnDragFinished(this, &SMGFXMaterialEditorCanvas::OnLayerMoveFinished);
 
 	const TSharedRef<SMGFXShapeTransformHandle> TransformHandleRef = TransformHandle.ToSharedRef();
@@ -393,44 +387,81 @@ FVector2D SMGFXMaterialEditorCanvas::GetEditingWidgetSize(TSharedRef<SWidget> Ed
 	return EditingWidget->GetDesiredSize();
 }
 
-FTransform2D SMGFXMaterialEditorCanvas::OnGetLayerTransform() const
+FTransform2D SMGFXMaterialEditorCanvas::GetTransformHandleParentTransform() const
 {
 	if (const UMGFXMaterialLayer* SelectedLayer = GetSelectedLayer())
 	{
-		// transforms are edited in view space, e.g. with artboard transform applied
-		const FTransform2D LayerTransform = SelectedLayer->GetTransform();
+		const FTransform2D ParentTransform = SelectedLayer->GetParentTransform();
 		const FTransform2D ArtboardTransform = ArtboardPanel->GetPanelToGraphTransform();
-		return LayerTransform.Concatenate(ArtboardTransform);
+		return ParentTransform.Concatenate(ArtboardTransform);
 	}
 	return FTransform2D();
 }
 
-void SMGFXMaterialEditorCanvas::OnLayerMoveTransform(FTransform2D NewTransform)
+FVector2D SMGFXMaterialEditorCanvas::GetTransformHandleLocation() const
+{
+	if (const UMGFXMaterialLayer* SelectedLayer = GetSelectedLayer())
+	{
+		return FVector2D(SelectedLayer->Transform.Location);
+	}
+	return FVector2D::ZeroVector;
+}
+
+float SMGFXMaterialEditorCanvas::GetTransformHandleRotation() const
+{
+	if (const UMGFXMaterialLayer* SelectedLayer = GetSelectedLayer())
+	{
+		return SelectedLayer->Transform.Rotation;
+	}
+	return 0.f;
+}
+
+FVector2D SMGFXMaterialEditorCanvas::GetTransformHandleScale() const
+{
+	if (const UMGFXMaterialLayer* SelectedLayer = GetSelectedLayer())
+	{
+		return FVector2D(SelectedLayer->Transform.Scale);
+	}
+	return FVector2D::ZeroVector;
+}
+
+void SMGFXMaterialEditorCanvas::OnSetLayerLocation(FVector2D NewLocation)
 {
 	if (UMGFXMaterialLayer* SelectedLayer = GetSelectedLayer())
 	{
-		// transforms are given in view space, remove artboard and parent transform to convert back to local
-		const FTransform2D ArtboardTransform = ArtboardPanel->GetPanelToGraphTransform();
-		const FTransform2D FullParentTransform = SelectedLayer->GetParentTransform().Concatenate(ArtboardTransform);
-
-		const FTransform2D NewLocalTransform = NewTransform.Concatenate(ArtboardTransform.Inverse());
-		const FMGFXShapeTransform2D NewLayerTransform = FMGFXShapeTransform2D(NewLocalTransform);
-
-		UE_LOG(LogTemp, Log, TEXT("%.3f"), NewLayerTransform.Rotation);
-
-		if (!SelectedLayer->Transform.IsEqual(NewLayerTransform))
-		{
-			// TODO: only modify properties that are being edited
-			SelectedLayer->Modify();
-			SelectedLayer->Transform.Location = NewLayerTransform.Location;
-			SelectedLayer->Transform.Rotation = NewLayerTransform.Rotation;
-			SelectedLayer->Transform.Scale = NewLayerTransform.Scale;
-		}
+		SelectedLayer->Modify();
+		SelectedLayer->Transform.Location = FVector2f(NewLocation);
+		// TODO: update MID
 	}
 }
 
-void SMGFXMaterialEditorCanvas::OnLayerMoveFinished()
+void SMGFXMaterialEditorCanvas::OnSetLayerRotation(float NewRotation)
 {
+	if (UMGFXMaterialLayer* SelectedLayer = GetSelectedLayer())
+	{
+		SelectedLayer->Modify();
+		SelectedLayer->Transform.Rotation = NewRotation;
+		// TODO: update MID
+	}
+}
+
+void SMGFXMaterialEditorCanvas::OnSetLayerScale(FVector2D NewScale)
+{
+	if (UMGFXMaterialLayer* SelectedLayer = GetSelectedLayer())
+	{
+		SelectedLayer->Modify();
+		SelectedLayer->Transform.Scale = FVector2f(NewScale);
+		// TODO: update MID
+	}
+}
+
+void SMGFXMaterialEditorCanvas::OnLayerMoveFinished(bool bWasModified)
+{
+	if (!bWasModified)
+	{
+		return;
+	}
+
 	if (UMGFXMaterialLayer* SelectedLayer = GetSelectedLayer())
 	{
 		// TODO: broadcast event instead?

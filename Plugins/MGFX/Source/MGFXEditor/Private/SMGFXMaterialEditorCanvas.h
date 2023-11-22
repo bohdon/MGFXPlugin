@@ -105,14 +105,27 @@ protected:
 
 	FVector2D GetEditingWidgetSize(TSharedRef<SWidget> EditingWidget) const;
 
-	/** Called to retrieve the selected layers transform when a transform handle drag begins. */
-	FTransform2D OnGetLayerTransform() const;
+	/**
+	 * Called to retrieve the selected layer's parent transform for use with the transform handle.
+	 * This will include artboard view offset and scale as well.
+	 */
+	FTransform2D GetTransformHandleParentTransform() const;
+
+	FVector2D GetTransformHandleLocation() const;
+	float GetTransformHandleRotation() const;
+	FVector2D GetTransformHandleScale() const;
 
 	/** Called by transform handles to move the currently selected layer. */
-	void OnLayerMoveTransform(FTransform2D NewTransform);
+	void OnSetLayerLocation(FVector2D NewLocation);
+
+	/** Called by transform handles to rotate the currently selected layer. */
+	void OnSetLayerRotation(float NewRotation);
+
+	/** Called by transform handles to scale the currently selected layer. */
+	void OnSetLayerScale(FVector2D NewScale);
 
 	/** Called when a transform handle is finished moving a layer. */
-	void OnLayerMoveFinished();
+	void OnLayerMoveFinished(bool bWasModified);
 
 	/** Return the currently selected layer (if there is only one). */
 	UMGFXMaterialLayer* GetSelectedLayer() const;

@@ -566,7 +566,7 @@ void FMGFXMaterialEditor::Generate_AddUVsBoilerplate(FMGFXMaterialBuilder& Build
 	if (MGFXMaterial->bComputeFilterWidth)
 	{
 		// create bias constant (even if its unused)
-		UMaterialExpressionConstant* FilterWidthBiasExp = Builder.Create<UMaterialExpressionConstant>(NodePos);
+		UMaterialExpressionConstant* FilterWidthBiasExp = Builder.Create<UMaterialExpressionConstant>(NodePos + FVector2D(0, GridSize * 8));
 		SET_PROP(FilterWidthBiasExp, R, MGFXMaterial->FilterWidthBias);
 
 		NodePos.X += GridSize * 15;
