@@ -4,14 +4,7 @@
 #include "MGFXMaterial.h"
 
 #include "MaterialDomain.h"
-#include "Shapes/MGFXMaterialShape.h"
 
-
-FString FMGFXMaterialLayer_DEPRECATED::GetName(int32 LayerIdx) const
-{
-	const FString LayerBaseName = Shape ? Shape->GetShapeName() : TEXT("Layer");
-	return Name.IsEmpty() ? FString::Printf(TEXT("%s%d"), *LayerBaseName, LayerIdx) : Name;
-}
 
 UMGFXMaterial::UMGFXMaterial()
 	: MaterialDomain(MD_UI),
@@ -32,18 +25,5 @@ void UMGFXMaterial::GetAllLayers(TArray<TObjectPtr<UMGFXMaterialLayer>>& OutLaye
 	{
 		OutLayers.Add(Layer);
 		Layer->GetAllLayers(OutLayers);
-	}
-}
-
-void UMGFXMaterial::PostLoad()
-{
-	UObject::PostLoad();
-
-	if (RootLayer_DEPRECATED)
-	{
-		RootLayer_DEPRECATED->Name = FString("RootLayer");
-		RootLayers.Add(RootLayer_DEPRECATED);
-		RootLayer_DEPRECATED = nullptr;
-		Modify();
 	}
 }

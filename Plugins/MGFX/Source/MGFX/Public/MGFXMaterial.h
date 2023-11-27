@@ -10,27 +10,6 @@
 class UMGFXMaterialShape;
 
 
-USTRUCT(BlueprintType)
-struct MGFX_API FMGFXMaterialLayer_DEPRECATED
-{
-	GENERATED_BODY()
-
-	/** The unique name of this layer. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FString Name;
-
-	/** The layer's transform. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FMGFXShapeTransform2D Transform;
-
-	/** The shape to create for this layer. */
-	UPROPERTY(EditAnywhere, Instanced)
-	TObjectPtr<UMGFXMaterialShape> Shape;
-
-	FString GetName(int32 LayerIdx) const;
-};
-
-
 /**
  * A motion graphics material.
  */
@@ -105,17 +84,10 @@ public:
 	UPROPERTY()
 	TArray<TObjectPtr<UMGFXMaterialLayer>> RootLayers;
 
-	virtual void PostLoad() override;
-
 	/** Return a flat list of all layers in the material. */
 	void GetAllLayers(TArray<TObjectPtr<UMGFXMaterialLayer>>& OutLayers) const;
 
 	// IMGFXMaterialLayerParentInterface
 	virtual const TArray<TObjectPtr<UMGFXMaterialLayer>>& GetLayers() const override { return RootLayers; }
 	virtual TArray<TObjectPtr<UMGFXMaterialLayer>>& GetMutableLayers() override { return RootLayers; }
-
-protected:
-	/** The root layer containing all other layers in the material. */
-	UPROPERTY()
-	TObjectPtr<UMGFXMaterialLayer> RootLayer_DEPRECATED;
 };
