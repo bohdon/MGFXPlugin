@@ -53,7 +53,7 @@ void SMGFXShapeTransformHandle::Construct(const FArguments& InArgs)
 	ChildSlot
 	[
 		SNew(SCanvas)
-		.RenderTransform(this, &SMGFXShapeTransformHandle::GetHandlesRenderTransform)
+		.RenderTransform(this, &SMGFXShapeTransformHandle::GetHandlesRenderTransform, EMGFXShapeTransformHandle::TranslateXY)
 
 		// translate Y handle
 		+ SCanvas::Slot()
@@ -88,21 +88,51 @@ void SMGFXShapeTransformHandle::Construct(const FArguments& InArgs)
 			.Visibility(this, &SMGFXShapeTransformHandle::GetHandleVisibility, EMGFXShapeTransformHandle::Rotate)
 			.ColorAndOpacity(FLinearColor::Transparent)
 		]
+
+		// scale Y handle
+		+ SCanvas::Slot()
+		  .Size(FVector2D(HandleWidth, HandleLength + ArrowSize))
+		  .HAlign(HAlign_Center)
+		  .VAlign(VAlign_Bottom)
+		[
+			SAssignNew(ScaleYHandle, SImage)
+			.Visibility(this, &SMGFXShapeTransformHandle::GetHandleVisibility, EMGFXShapeTransformHandle::ScaleY)
+			.ColorAndOpacity(FLinearColor::Transparent)
+			.RenderTransformPivot(FVector2D(0.5f, 1.f))
+			.RenderTransform(this, &SMGFXShapeTransformHandle::GetHandlesRenderTransform, EMGFXShapeTransformHandle::ScaleY)
+		]
+
+		// scale X handle
+		+ SCanvas::Slot()
+		  .Size(FVector2D(HandleLength + ArrowSize, HandleWidth))
+		  .HAlign(HAlign_Left)
+		  .VAlign(VAlign_Center)
+		[
+			SAssignNew(ScaleXHandle, SImage)
+			.Visibility(this, &SMGFXShapeTransformHandle::GetHandleVisibility, EMGFXShapeTransformHandle::ScaleX)
+			.ColorAndOpacity(FLinearColor::Transparent)
+			.RenderTransformPivot(FVector2D(0.f, 0.5f))
+			.RenderTransform(this, &SMGFXShapeTransformHandle::GetHandlesRenderTransform, EMGFXShapeTransformHandle::ScaleX)
+		]
 	];
 }
 
 FReply SMGFXShapeTransformHandle::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
-	// determine which handle to drag
-	const TOptional<EMGFXShapeTransformHandle> HandleType = GetHoveredHandle();
-
-	// start dragging
-	if (HandleType.IsSet())
+	if (MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
 	{
-		return StartDragging(HandleType.GetValue(), MouseEvent);
+		// determine which handle to drag
+		const TOptional<EMGFXShapeTransformHandle> HandleType = GetHoveredHandle();
+
+		// start dragging
+		if (HandleType.IsSet())
+		{
+			return StartDragging(HandleType.GetValue(), MouseEvent);
+		}
 	}
 
-	return SCompoundWidget::OnMouseButtonDown(MyGeometry, MouseEvent);
+	return FReply::Unhandled();
+	// return SCompoundWidget::OnMouseButtonDown(MyGeometry, MouseEvent);
 }
 
 FReply SMGFXShapeTransformHandle::OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
@@ -173,7 +203,6 @@ FReply SMGFXShapeTransformHandle::PerformMouseMoveTranslate(const FGeometry& MyG
 	{
 		if (ActiveHandle.GetValue() == EMGFXShapeTransformHandle::TranslateXY)
 		{
-			// snap at the first sign of a direction when we haven't yet
 			if (FMath::Abs(DragDelta.X) > FMath::Abs(DragDelta.Y))
 			{
 				ActiveHandle = EMGFXShapeTransformHandle::TranslateX;
@@ -191,7 +220,6 @@ FReply SMGFXShapeTransformHandle::PerformMouseMoveTranslate(const FGeometry& MyG
 	}
 
 	// apply axis constraints
-	const bool bIsShiftConstrainingAxis = MouseEvent.IsShiftDown() && ActiveHandle.GetValue() == EMGFXShapeTransformHandle::TranslateXY;
 	if (ActiveHandle.GetValue() == EMGFXShapeTransformHandle::TranslateX)
 	{
 		DragDelta *= FVector2D(1.f, 0.f);
@@ -209,7 +237,7 @@ FReply SMGFXShapeTransformHandle::PerformMouseMoveTranslate(const FGeometry& MyG
 	const bool bSnapToGrid = MouseEvent.GetModifierKeys().IsControlDown();
 	const FVector2D NewLocation = bSnapToGrid ? SnapLocationToGrid(OffsetLocation) : OffsetLocation;
 
-	// keep track of whether the new location is actually different...
+	// keep track of whether the new value is actually different...
 	bWasModified = !(OriginalLocation - NewLocation).IsNearlyZero();
 
 	// ...but always send the interactive change event
@@ -234,7 +262,7 @@ FReply SMGFXShapeTransformHandle::PerformMouseMoveRotate(const FGeometry& MyGeom
 	const bool bSnapToGrid = MouseEvent.GetModifierKeys().IsControlDown();
 	const float NewRotation = FMath::UnwindDegrees(bSnapToGrid ? SnapRotationToGrid(OffsetAngle) : OffsetAngle);
 
-	// keep track of whether the new rotation is actually different...
+	// keep track of whether the new value is actually different...
 	bWasModified = !FMath::IsNearlyEqual(NewRotation, OriginalRotation);
 
 	// ...but always send the interactive change event
@@ -245,8 +273,85 @@ FReply SMGFXShapeTransformHandle::PerformMouseMoveRotate(const FGeometry& MyGeom
 
 FReply SMGFXShapeTransformHandle::PerformMouseMoveScale(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
-	// const FVector2D NewScale = FVector2D::One();
-	// OnSetScaleEvent.ExecuteIfBound(NewScale);
+	// the transform to apply to drag deltas so they operate in local space
+	const float LocalRotation = FMath::DegreesToRadians(Rotation.Get());
+	const FTransform2D HandleSpaceTransform = FTransform2D(FQuat2D(LocalRotation)).Concatenate(ParentTransform.Get(FTransform2D())).Inverse();
+
+	// get the raw delta, using screen space coords
+	FVector2D DragDelta = MouseEvent.GetScreenSpacePosition() - ScreenDragStartPosition;
+
+	// true when temporarily constraining to a single axis by holding down shift
+	const bool bWantsConstrainAxis = MouseEvent.IsShiftDown();
+	// true if the delta scale should be the same for both X and Y
+	const bool bKeepUniform = ActiveHandle.GetValue() == EMGFXShapeTransformHandle::ScaleXY && !bWantsConstrainAxis;
+
+	if (!bKeepUniform)
+	{
+		// apply inverse parent transform to operate on delta in local space
+		DragDelta = HandleSpaceTransform.TransformVector(DragDelta);
+	}
+
+	// flip Y since negative UI coordinates == positive scale
+	DragDelta.Y *= -1.f;
+
+	// change active handle temporarily if holding shift (constrain to an axis)
+	if (bWantsConstrainAxis)
+	{
+		if (ActiveHandle.GetValue() == EMGFXShapeTransformHandle::ScaleXY)
+		{
+			if (FMath::Abs(DragDelta.X) > FMath::Abs(DragDelta.Y))
+			{
+				ActiveHandle = EMGFXShapeTransformHandle::ScaleX;
+			}
+			else if (FMath::Abs(DragDelta.X) < FMath::Abs(DragDelta.Y))
+			{
+				ActiveHandle = EMGFXShapeTransformHandle::ScaleY;
+			}
+		}
+	}
+	else if (ActiveHandle != OriginalActiveHandle)
+	{
+		// remove temporary axis constraint
+		ActiveHandle = OriginalActiveHandle;
+	}
+
+
+	// apply axis constraints
+	if (ActiveHandle.GetValue() == EMGFXShapeTransformHandle::ScaleX)
+	{
+		DragDelta *= FVector2D(1.f, 0.f);
+	}
+	else if (ActiveHandle.GetValue() == EMGFXShapeTransformHandle::ScaleY)
+	{
+		DragDelta *= FVector2D(0.f, 1.f);
+	}
+	else if (bKeepUniform)
+	{
+		// apply uniform scale constraint
+		const float DragDeltaSum = (DragDelta.X + DragDelta.Y) / 2.f;
+		DragDelta = FVector2D(DragDeltaSum, DragDeltaSum);
+	}
+
+	// dragging the same distance of the handle length will cause the scale to change by +/- 1.0
+	const float LocalHandleLength = HandleSpaceTransform.TransformVector(FVector2D(HandleLength, 0.f)).Length();
+	const float ScaleSensitivity = 1.f / LocalHandleLength;
+	// track the current delta for painting scaled handles
+	DragDeltaScale = FVector2D::One() + DragDelta * ScaleSensitivity;
+	const FVector2D OffsetScale = OriginalScale * DragDeltaScale;
+
+	UE_LOG(LogTemp, Log, TEXT("Delta: %s, Scale: %.3f, LocalHandleLength: %.3f"), *DragDelta.ToString(), ScaleSensitivity, LocalHandleLength);
+
+	// TODO: ideally hold X to snap
+	// optionally snap to grid
+	const bool bSnapToGrid = MouseEvent.GetModifierKeys().IsControlDown();
+	const FVector2D NewScale = bSnapToGrid ? SnapScaleToGrid(OffsetScale) : OffsetScale;
+
+	// keep track of whether the new value is actually different...
+	bWasModified = !(OriginalScale - NewScale).IsNearlyZero();
+
+	// ...but always send the interactive change event
+	OnSetScaleEvent.ExecuteIfBound(NewScale);
+
 	return FReply::Handled();
 }
 
@@ -264,6 +369,15 @@ float SMGFXShapeTransformHandle::SnapRotationToGrid(float InRotation) const
 	// TODO: expose
 	const float RotationGridAngle = 15.f;
 	return FMath::RoundHalfFromZero(InRotation / RotationGridAngle) * RotationGridAngle;
+}
+
+FVector2D SMGFXShapeTransformHandle::SnapScaleToGrid(FVector2D InScale) const
+{
+	// TODO: expose
+	const float GridSize = 0.25f;
+	return FVector2D(
+		FMath::RoundHalfFromZero(InScale.X / GridSize) * GridSize,
+		FMath::RoundHalfFromZero(InScale.Y / GridSize) * GridSize);
 }
 
 void SMGFXShapeTransformHandle::OnMouseEnter(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
@@ -325,6 +439,21 @@ int32 SMGFXShapeTransformHandle::OnPaint(const FPaintArgs& Args, const FGeometry
 			FSlateDrawElement::MakeLines(OutDrawElements, LayerId, AllottedGeometry.ToPaintGeometry(), NewAnglePoints,
 			                             ESlateDrawEffect::None, FLinearColor::Yellow);
 		}
+	}
+
+	if (GetHandleVisibility(EMGFXShapeTransformHandle::ScaleX) == EVisibility::Visible)
+	{
+		const FVector2D Direction = FVector2D(1.f, 0.f);
+		const FLinearColor Color = GetHandleColor(EMGFXShapeTransformHandle::ScaleX).GetSpecifiedColor();
+
+		PaintScaleHandle(AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, Direction, Color);
+	}
+	if (GetHandleVisibility(EMGFXShapeTransformHandle::ScaleY) == EVisibility::Visible)
+	{
+		const FVector2D Direction = FVector2D(0.f, -1.f);
+		const FLinearColor Color = GetHandleColor(EMGFXShapeTransformHandle::ScaleY).GetSpecifiedColor();
+
+		PaintScaleHandle(AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, Direction, Color);
 	}
 
 	return LayerId;
@@ -413,11 +542,54 @@ int32 SMGFXShapeTransformHandle::PaintRotateHandle(const FGeometry& AllottedGeom
 	return LayerId;
 }
 
-TOptional<FSlateRenderTransform> SMGFXShapeTransformHandle::GetHandlesRenderTransform() const
+int32 SMGFXShapeTransformHandle::PaintScaleHandle(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements,
+                                                  int32 LayerId, const FVector2D& Direction, const FLinearColor& Color) const
+{
+	// transform to apply to handles so that they represent the current rotation
+	// (scale comes after rotation)
+	const FTransform2D HandlesTransform = GetInverseRotationTransform();
+
+	// visualize the delta scale from the current drag operation
+	// inverse Y component since Y handle direction is negative, but that should align with positive scale 
+	const FVector2D InvDragDeltaScale = DragDeltaScale * FVector2D(1.f, -1.f);
+	const float DragDeltaScaleInDir = bIsDragging ? Direction.Dot(InvDragDeltaScale) : 1.f;
+
+	const FVector2D EndPoint = Direction * HandleLength * DragDeltaScaleInDir;
+
+	// draw line
+	const TArray<FVector2D> LinePoints = {
+		HandlesTransform.TransformPoint(FVector2D::ZeroVector),
+		HandlesTransform.TransformPoint(EndPoint)
+	};
+	FSlateDrawElement::MakeLines(OutDrawElements, LayerId, AllottedGeometry.ToPaintGeometry(), LinePoints,
+	                             ESlateDrawEffect::None, Color, true, HandleLineWidth);
+
+	// draw square
+	FSlateDrawElement::MakeBox(OutDrawElements, LayerId, AllottedGeometry.ToPaintGeometry(),
+	                           FAppStyle::GetBrush("WhiteBrush"), ESlateDrawEffect::None, Color);
+
+	return LayerId;
+}
+
+TOptional<FSlateRenderTransform> SMGFXShapeTransformHandle::GetHandlesRenderTransform(EMGFXShapeTransformHandle HandleType) const
 {
 	// just applying rotation, location is already set by the parent widget,
 	// and scale should not be applied so that handle sizes are constant
-	return GetParentInverseRotationTransform();
+	switch (HandleType)
+	{
+	default:
+	case EMGFXShapeTransformHandle::TranslateX:
+	case EMGFXShapeTransformHandle::TranslateY:
+	case EMGFXShapeTransformHandle::TranslateXY:
+		// represent only the parent's rotation, since T happens before RS
+		return GetParentInverseRotationTransform();
+	case EMGFXShapeTransformHandle::Rotate:
+	case EMGFXShapeTransformHandle::ScaleX:
+	case EMGFXShapeTransformHandle::ScaleY:
+	case EMGFXShapeTransformHandle::ScaleXY:
+		// represent the local rotation in both rotate and scale transform handles
+		return GetInverseRotationTransform();
+	}
 }
 
 FTransform2D SMGFXShapeTransformHandle::GetInverseRotationTransform() const
@@ -508,6 +680,11 @@ bool SMGFXShapeTransformHandle::IsMatchingOrRelevantHandle(EMGFXShapeTransformHa
 		return HandleType == EMGFXShapeTransformHandle::TranslateX ||
 			HandleType == EMGFXShapeTransformHandle::TranslateY;
 	}
+	else if (OtherHandleType == EMGFXShapeTransformHandle::ScaleXY)
+	{
+		return HandleType == EMGFXShapeTransformHandle::ScaleX ||
+			HandleType == EMGFXShapeTransformHandle::ScaleY;
+	}
 	return false;
 }
 
@@ -524,6 +701,14 @@ TOptional<EMGFXShapeTransformHandle> SMGFXShapeTransformHandle::GetHoveredHandle
 	else if (RotateHandle->IsHovered())
 	{
 		return EMGFXShapeTransformHandle::Rotate;
+	}
+	else if (ScaleXHandle->IsHovered())
+	{
+		return EMGFXShapeTransformHandle::ScaleX;
+	}
+	else if (ScaleYHandle->IsHovered())
+	{
+		return EMGFXShapeTransformHandle::ScaleY;
 	}
 
 	return TOptional<EMGFXShapeTransformHandle>();
@@ -567,6 +752,7 @@ FReply SMGFXShapeTransformHandle::StartDragging(EMGFXShapeTransformHandle Handle
 	ScreenDragStartPosition = MouseEvent.GetScreenSpacePosition();
 	// set local drag start on the next mouse move, when we have geometry
 	LocalDragStartPosition.Reset();
+	DragDeltaScale = FVector2D::One();
 
 	// TODO: expose as option, could be moving something other than a 'layer'
 	Transaction = new FScopedTransaction(NSLOCTEXT("MGFXMaterialEditor", "MoveLayer", "Move Layer"));

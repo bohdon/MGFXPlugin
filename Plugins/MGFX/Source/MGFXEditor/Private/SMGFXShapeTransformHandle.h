@@ -110,6 +110,10 @@ public:
 	int32 PaintRotateHandle(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements,
 	                        int32 LayerId, const FLinearColor& Color) const;
 
+	/** Paint a line and square with a direction and color. Uses the HandleLength and ArrowSize properties. */
+	int32 PaintScaleHandle(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements,
+	                       int32 LayerId, const FVector2D& Direction, const FLinearColor& Color) const;
+
 	/** Return true if two handle types are equal, or if HandleType is a sub category of OtherHandleType, e.g. TranslateX is a subtype of TranslateXY. */
 	bool IsMatchingOrRelevantHandle(EMGFXShapeTransformHandle HandleType, EMGFXShapeTransformHandle OtherHandleType) const;
 
@@ -128,6 +132,8 @@ protected:
 	TSharedPtr<SWidget> TranslateXHandle;
 	TSharedPtr<SWidget> TranslateYHandle;
 	TSharedPtr<SWidget> RotateHandle;
+	TSharedPtr<SWidget> ScaleXHandle;
+	TSharedPtr<SWidget> ScaleYHandle;
 
 	/**
 	 * The parent transform of the target transform, including any view space transformations.
@@ -196,6 +202,9 @@ protected:
 	/** The local position of the mouse during the last mouse move. */
 	FVector2D LocalDragPosition;
 
+	/** The current delta scale being applied during a drag scale operation. */
+	FVector2D DragDeltaScale;
+
 	/** The currently active transform transaction. */
 	FScopedTransaction* Transaction;
 
@@ -221,7 +230,7 @@ protected:
 	 * Return the render transform to use for the handles widgets that are hit tested.
 	 * This will only include parent space rotation.
 	 */
-	TOptional<FSlateRenderTransform> GetHandlesRenderTransform() const;
+	TOptional<FSlateRenderTransform> GetHandlesRenderTransform(EMGFXShapeTransformHandle HandleType) const;
 
 	/** Return the inverse transform including only it's rotation, used to visually rotate the handles. */
 	FTransform2D GetInverseRotationTransform() const;
@@ -244,4 +253,7 @@ protected:
 
 	/** Snap a rotation angle to the grid. */
 	float SnapRotationToGrid(float InRotation) const;
+
+	/** Snap a scale to the grid. */
+	FVector2D SnapScaleToGrid(FVector2D InScale) const;
 };
