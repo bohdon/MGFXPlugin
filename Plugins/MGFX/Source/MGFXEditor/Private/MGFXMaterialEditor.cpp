@@ -26,6 +26,7 @@
 #include "Materials/MaterialExpressionMultiply.h"
 #include "Materials/MaterialExpressionNamedReroute.h"
 #include "Materials/MaterialExpressionScalarParameter.h"
+#include "Materials/MaterialExpressionStaticBool.h"
 #include "Materials/MaterialExpressionSubtract.h"
 #include "Materials/MaterialExpressionVectorParameter.h"
 #include "Misc/TransactionObjectEvent.h"
@@ -1090,6 +1091,14 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_ShapeFill(FMGFXMaterialBuilde
 	// add filter width input
 	UMaterialExpressionNamedRerouteUsage* FilterWidthExp = Builder.CreateNamedRerouteUsage(NodePos + FVector2D(0, GridSize * 8), Reroute_FilterWidth);
 
+	// optionally enable filter bias
+	UMaterialExpressionStaticBool* EnableBiasExp = nullptr;
+	if (Fill->bEnableFilterBias)
+	{
+		EnableBiasExp = Builder.Create<UMaterialExpressionStaticBool>(NodePos + FVector2D(0, GridSize * 16));
+		SET_PROP_R(EnableBiasExp, Value, 1);
+	}
+
 	NodePos.X += GridSize * 15;
 
 	// add fill func
@@ -1097,6 +1106,10 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_ShapeFill(FMGFXMaterialBuilde
 		NodePos, TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Fill.MF_MGFX_Fill")));
 	Builder.Connect(ShapeExp, "SDF", FillExp, "SDF");
 	Builder.Connect(FilterWidthExp, "", FillExp, "FilterWidth");
+	if (EnableBiasExp)
+	{
+		Builder.Connect(EnableBiasExp, "", FillExp, "EnableFilterBias");
+	}
 
 	NodePos.X += GridSize * 15;
 

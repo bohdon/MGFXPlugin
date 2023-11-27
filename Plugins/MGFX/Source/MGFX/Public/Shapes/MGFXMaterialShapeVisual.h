@@ -27,6 +27,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Fill")
 	FLinearColor Color = FLinearColor::White;
 
+	/** Greatly improves the quality of thin shapes by biasing the SDF by the FilterWidth. */
+	UPROPERTY(EditAnywhere, Category = "Fill")
+	bool bEnableFilterBias = false;
+
 	virtual FLinearColor GetColor() const override { return Color; }
 };
 
