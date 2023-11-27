@@ -281,8 +281,12 @@ FReply SMGFXShapeTransformHandle::PerformMouseMoveScale(const FGeometry& MyGeome
 	const float LocalRotation = FMath::DegreesToRadians(Rotation.Get());
 	const FTransform2D HandleSpaceTransform = FTransform2D(FQuat2D(LocalRotation)).Concatenate(ParentTransform.Get(FTransform2D())).Inverse();
 
+	const float DPIScale = GetDPIScale();
+
 	// get the raw delta, using screen space coords
 	FVector2D DragDelta = MouseEvent.GetScreenSpacePosition() - ScreenDragStartPosition;
+	// the distance that must be dragged to add +/- 100% scale
+	float ScaleUnitDistance = HandleLength;
 
 	// true when temporarily constraining to a single axis by holding down shift
 	const bool bWantsConstrainAxis = MouseEvent.IsShiftDown();
@@ -291,8 +295,10 @@ FReply SMGFXShapeTransformHandle::PerformMouseMoveScale(const FGeometry& MyGeome
 
 	if (!bKeepUniform)
 	{
-		// apply inverse parent transform to operate on delta in local space
+		// apply inverse parent transform to operate in local space
 		DragDelta = HandleSpaceTransform.TransformVector(DragDelta);
+		// scale unit should also now be in local space
+		ScaleUnitDistance = HandleSpaceTransform.TransformVector(FVector2D(HandleLength, 0.f)).Length();
 	}
 
 	// flip Y since negative UI coordinates == positive scale
@@ -337,16 +343,11 @@ FReply SMGFXShapeTransformHandle::PerformMouseMoveScale(const FGeometry& MyGeome
 	}
 
 	// account for window dpi and application scale
-	DragDelta /= GetDPIScale();
+	DragDelta /= DPIScale;
 
 	// dragging the same distance of the handle length will cause the scale to change by +/- 1.0
-	const float LocalHandleLength = HandleSpaceTransform.TransformVector(FVector2D(HandleLength, 0.f)).Length();
-	const float ScaleSensitivity = 1.f / LocalHandleLength;
-	// track the current delta for painting scaled handles
-	DragDeltaScale = FVector2D::One() + DragDelta * ScaleSensitivity;
-	const FVector2D OffsetScale = OriginalScale * DragDeltaScale;
-
-	UE_LOG(LogTemp, Log, TEXT("Delta: %s, Scale: %.3f, LocalHandleLength: %.3f"), *DragDelta.ToString(), ScaleSensitivity, LocalHandleLength);
+	const float ScaleSensitivity = 1.f / ScaleUnitDistance;
+	const FVector2D OffsetScale = OriginalScale * (FVector2D::One() + DragDelta * ScaleSensitivity);
 
 	// TODO: ideally hold X to snap
 	// optionally snap to grid
@@ -381,7 +382,7 @@ float SMGFXShapeTransformHandle::SnapRotationToGrid(float InRotation) const
 FVector2D SMGFXShapeTransformHandle::SnapScaleToGrid(FVector2D InScale) const
 {
 	// TODO: expose
-	const float GridSize = 0.25f;
+	const float GridSize = 0.1f;
 	return FVector2D(
 		FMath::RoundHalfFromZero(InScale.X / GridSize) * GridSize,
 		FMath::RoundHalfFromZero(InScale.Y / GridSize) * GridSize);
@@ -441,22 +442,6 @@ int32 SMGFXShapeTransformHandle::OnPaint(const FPaintArgs& Args, const FGeometry
 	{
 		const FLinearColor Color = GetHandleColor(EMGFXShapeTransformHandle::Rotate).GetSpecifiedColor();
 		PaintRotateHandle(AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, Color);
-
-		// paint delta angle indicators while dragging
-		if (bIsDragging && LocalDragStartPosition.IsSet())
-		{
-			const TArray<FVector2D> OrigAnglePoints = {
-				FVector2D::ZeroVector, LocalDragStartPosition.GetValue().GetSafeNormal() * HandleLength
-			};
-			FSlateDrawElement::MakeLines(OutDrawElements, LayerId, AllottedGeometry.ToPaintGeometry(), OrigAnglePoints,
-			                             ESlateDrawEffect::None, FLinearColor::Yellow);
-
-			const TArray<FVector2D> NewAnglePoints = {
-				FVector2D::ZeroVector, LocalDragPosition.GetSafeNormal() * HandleLength
-			};
-			FSlateDrawElement::MakeLines(OutDrawElements, LayerId, AllottedGeometry.ToPaintGeometry(), NewAnglePoints,
-			                             ESlateDrawEffect::None, FLinearColor::Yellow);
-		}
 	}
 
 	if (GetHandleVisibility(EMGFXShapeTransformHandle::ScaleX) == EVisibility::Visible)
@@ -494,11 +479,12 @@ int32 SMGFXShapeTransformHandle::PaintTranslateHandle(const FGeometry& AllottedG
 	FSlateDrawElement::MakeLines(OutDrawElements, LayerId, AllottedGeometry.ToPaintGeometry(), LinePoints,
 	                             ESlateDrawEffect::None, Color, true, HandleLineWidth);
 
-	// arrow head is 3x longer than it is wide
+	// arrow head is 3x longer than it is wide, and centered on the end point
+	const FVector2D ArrowBasePoint = EndPoint - Direction * ArrowSize / 2.f;
 	const TArray<FVector2D> ArrowPoints = {
-		HandlesTransform.TransformPoint(EndPoint + CrossDir * ArrowSize / 3.f),
-		HandlesTransform.TransformPoint(EndPoint + Direction * ArrowSize),
-		HandlesTransform.TransformPoint(EndPoint - CrossDir * ArrowSize / 3.f),
+		HandlesTransform.TransformPoint(ArrowBasePoint + CrossDir * ArrowSize / 3.f),
+		HandlesTransform.TransformPoint(ArrowBasePoint + Direction * ArrowSize),
+		HandlesTransform.TransformPoint(ArrowBasePoint - CrossDir * ArrowSize / 3.f),
 	};
 
 	TArray<FSlateVertex> ArrowVertices;
@@ -541,21 +527,45 @@ int32 SMGFXShapeTransformHandle::PaintRotateHandle(const FGeometry& AllottedGeom
 
 	// draw tick marks for X and Y axes
 	++LayerId;
-	TArray<FVector2D> XTickPoints = {
-		HandlesTransform.TransformPoint(FVector2D(1.f, 0.f) * HandleLength - FVector2D(5.f, 0.f)),
-		HandlesTransform.TransformPoint(FVector2D(1.f, 0.f) * HandleLength + FVector2D(5.f, 0.f))
+	const TArray<FVector2D> XTickPoints = {
+		HandlesTransform.TransformPoint(FVector2D(HandleLength, 0.f) - FVector2D(5.f, 0.f)),
+		HandlesTransform.TransformPoint(FVector2D(HandleLength, 0.f) + FVector2D(5.f, 0.f))
 	};
 	const FLinearColor XColor = GetHandleColor(EMGFXShapeTransformHandle::TranslateX).GetSpecifiedColor();
 	FSlateDrawElement::MakeLines(OutDrawElements, LayerId, AllottedGeometry.ToPaintGeometry(), XTickPoints,
 	                             ESlateDrawEffect::None, XColor, true, 10.f);
 
-	TArray<FVector2D> YTickPoints = {
-		HandlesTransform.TransformPoint(FVector2D(0.f, -1.f) * HandleLength - FVector2D(0.f, 5.f)),
-		HandlesTransform.TransformPoint(FVector2D(0.f, -1.f) * HandleLength + FVector2D(0.f, 5.f))
+	const TArray<FVector2D> YTickPoints = {
+		HandlesTransform.TransformPoint(FVector2D(0.f, -HandleLength) - FVector2D(0.f, 5.f)),
+		HandlesTransform.TransformPoint(FVector2D(0.f, -HandleLength) + FVector2D(0.f, 5.f))
 	};
 	const FLinearColor YColor = GetHandleColor(EMGFXShapeTransformHandle::TranslateY).GetSpecifiedColor();
 	FSlateDrawElement::MakeLines(OutDrawElements, LayerId, AllottedGeometry.ToPaintGeometry(), YTickPoints,
 	                             ESlateDrawEffect::None, YColor, true, 10.f);
+
+	// if dragging, visualize delta angle from X vector
+	if (bIsDragging)
+	{
+		const float DeltaRotation = Rotation.Get() - OriginalRotation;
+
+		// draw current rotations X vector
+		const TArray<FVector2D> RotatedAnglePoints = {
+			FVector2D::ZeroVector,
+			HandlesTransform.TransformVector(FVector2D(HandleLength, 0.f))
+		};
+		FSlateDrawElement::MakeLines(OutDrawElements, LayerId, AllottedGeometry.ToPaintGeometry(), RotatedAnglePoints,
+		                             ESlateDrawEffect::None, FLinearColor::Yellow);
+
+		// draw original rotations X vector
+		const FTransform2D InvDeltaRotationTransform(FQuat2D(FMath::DegreesToRadians(-DeltaRotation)));
+		const FTransform2D OrigHandlesTransform = InvDeltaRotationTransform.Concatenate(HandlesTransform);
+		const TArray<FVector2D> OrigAnglePoints = {
+			FVector2D::ZeroVector,
+			OrigHandlesTransform.TransformVector(FVector2D(HandleLength, 0.f))
+		};
+		FSlateDrawElement::MakeLines(OutDrawElements, LayerId, AllottedGeometry.ToPaintGeometry(), OrigAnglePoints,
+		                             ESlateDrawEffect::None, FLinearColor::Yellow);
+	}
 
 	return LayerId;
 }
@@ -567,12 +577,18 @@ int32 SMGFXShapeTransformHandle::PaintScaleHandle(const FGeometry& AllottedGeome
 	// (scale comes after rotation)
 	const FTransform2D HandlesTransform = GetInverseRotationTransform();
 
-	// visualize the delta scale from the current drag operation
-	// inverse Y component since Y handle direction is negative, but that should align with positive scale 
-	const FVector2D InvDragDeltaScale = DragDeltaScale * FVector2D(1.f, -1.f);
-	const float DragDeltaScaleInDir = bIsDragging ? Direction.Dot(InvDragDeltaScale) : 1.f;
+	// if dragging, visualize the delta scale for this direction
+	float EffectiveDeltaScale = 1.f;
+	if (bIsDragging)
+	{
+		const FVector2D DeltaScale = Scale.Get() / OriginalScale;
+		// inverse Y component since Y handle direction is negative, but that should align with positive scale
+		const FVector2D InvDeltaScale = DeltaScale * FVector2D(1.f, -1.f);
 
-	const FVector2D EndPoint = Direction * HandleLength * DragDeltaScaleInDir;
+		EffectiveDeltaScale = Direction.Dot(InvDeltaScale);
+	}
+
+	const FVector2D EndPoint = Direction * HandleLength * EffectiveDeltaScale;
 
 	// draw line
 	const TArray<FVector2D> LinePoints = {
@@ -583,7 +599,11 @@ int32 SMGFXShapeTransformHandle::PaintScaleHandle(const FGeometry& AllottedGeome
 	                             ESlateDrawEffect::None, Color, true, HandleLineWidth);
 
 	// draw square
-	FSlateDrawElement::MakeBox(OutDrawElements, LayerId, AllottedGeometry.ToPaintGeometry(),
+	const FVector2D BoxSize = FVector2D(ArrowSize, ArrowSize);
+	const FVector2D BoxHalfSize = BoxSize / 2.f;
+	const FSlateLayoutTransform BoxTransform(EndPoint - BoxHalfSize);
+	const FPaintGeometry BoxGeometry = AllottedGeometry.MakeChild(HandlesTransform).ToPaintGeometry(BoxSize, BoxTransform);
+	FSlateDrawElement::MakeBox(OutDrawElements, LayerId, BoxGeometry,
 	                           FAppStyle::GetBrush("WhiteBrush"), ESlateDrawEffect::None, Color);
 
 	return LayerId;
@@ -770,7 +790,6 @@ FReply SMGFXShapeTransformHandle::StartDragging(EMGFXShapeTransformHandle Handle
 	ScreenDragStartPosition = MouseEvent.GetScreenSpacePosition();
 	// set local drag start on the next mouse move, when we have geometry
 	LocalDragStartPosition.Reset();
-	DragDeltaScale = FVector2D::One();
 
 	// TODO: expose as option, could be moving something other than a 'layer'
 	Transaction = new FScopedTransaction(NSLOCTEXT("MGFXMaterialEditor", "MoveLayer", "Move Layer"));

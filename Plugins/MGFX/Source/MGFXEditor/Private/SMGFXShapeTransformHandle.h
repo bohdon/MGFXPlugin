@@ -202,9 +202,6 @@ protected:
 	/** The local position of the mouse during the last mouse move. */
 	FVector2D LocalDragPosition;
 
-	/** The current delta scale being applied during a drag scale operation. */
-	FVector2D DragDeltaScale;
-
 	/** The currently active transform transaction. */
 	FScopedTransaction* Transaction;
 
