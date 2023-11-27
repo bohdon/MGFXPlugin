@@ -45,7 +45,7 @@ const FName FMGFXMaterialEditor::CanvasTabId(TEXT("MGFXMaterialEditorCanvasTab")
 const FName FMGFXMaterialEditor::LayersTabId(TEXT("MGFXMaterialEditorLayersTab"));
 const FName FMGFXMaterialEditor::DetailsTabId(TEXT("MGFXMaterialEditorDetailsTab"));
 const FName FMGFXMaterialEditor::Reroute_CanvasUVs(TEXT("CanvasUVs"));
-const FName FMGFXMaterialEditor::Reroute_FilterWidth(TEXT("FilterWidth"));
+const FName FMGFXMaterialEditor::Reroute_CanvasFilterWidth(TEXT("CanvasFilterWidth"));
 const FName FMGFXMaterialEditor::Reroute_LayersOutput(TEXT("LayersOutput"));
 const int32 FMGFXMaterialEditor::GridSize(16);
 
@@ -614,7 +614,7 @@ void FMGFXMaterialEditor::Generate_AddUVsBoilerplate(FMGFXMaterialBuilder& Build
 	}
 
 	// add filter width reroute
-	UMaterialExpressionNamedRerouteDeclaration* FilterWidthRerouteExp = Builder.CreateNamedReroute(NodePos, Reroute_FilterWidth);
+	UMaterialExpressionNamedRerouteDeclaration* FilterWidthRerouteExp = Builder.CreateNamedReroute(NodePos, Reroute_CanvasFilterWidth);
 	Builder.Connect(FilterWidthExp, FilterWidthOutput, FilterWidthRerouteExp, "");
 }
 
@@ -628,31 +628,34 @@ void FMGFXMaterialEditor::Generate_Layers(FMGFXMaterialBuilder& Builder)
 
 	NodePos.X += GridSize * 15;
 
-	const FMGFXMaterialLayerOutputs BGOutputs(nullptr, nullptr, BGColorExp);
-
 	// create base UVs
 	UMaterialExpressionNamedRerouteDeclaration* CanvasUVsDeclaration = Builder.FindNamedReroute(Reroute_CanvasUVs);
+	UMaterialExpressionNamedRerouteDeclaration* CanvasFilterWidthDeclaration = Builder.FindNamedReroute(Reroute_CanvasFilterWidth);
 	check(CanvasUVsDeclaration);
+	check(CanvasFilterWidthDeclaration);
+
+	const FMGFXMaterialUVsAndFilterWidth BGUVsInfo(CanvasUVsDeclaration, CanvasFilterWidthDeclaration);
+
+	const FMGFXMaterialLayerOutputs BaseLayerOutputs(BGUVsInfo, nullptr, BGColorExp);
 
 	// generate all layers recursively
-	FMGFXMaterialLayerOutputs RootLayerOutputs = BGOutputs;
+	FMGFXMaterialLayerOutputs LayerOutputs = BaseLayerOutputs;
 	for (int32 Idx = MGFXMaterial->RootLayers.Num() - 1; Idx >= 0; --Idx)
 	{
 		const UMGFXMaterialLayer* ChildLayer = MGFXMaterial->RootLayers[Idx];
 
-		RootLayerOutputs = Generate_Layer(Builder, NodePos, ChildLayer, CanvasUVsDeclaration, RootLayerOutputs);
+		LayerOutputs = Generate_Layer(Builder, NodePos, ChildLayer, BaseLayerOutputs.UVs, LayerOutputs);
 	}
 
 	NodePos.X += GridSize * 15;
 
 	// connect to layers output reroute
 	UMaterialExpressionNamedRerouteDeclaration* OutputRerouteExp = Builder.CreateNamedReroute(NodePos, Reroute_LayersOutput, RGBARerouteColor);
-	Builder.Connect(RootLayerOutputs.VisualExp, "", OutputRerouteExp, "");
+	Builder.Connect(LayerOutputs.VisualExp, "", OutputRerouteExp, "");
 }
 
 FMGFXMaterialLayerOutputs FMGFXMaterialEditor::Generate_Layer(FMGFXMaterialBuilder& Builder, FVector2D& NodePos, const UMGFXMaterialLayer* Layer,
-                                                              UMaterialExpressionNamedRerouteDeclaration* InputUVsReroute,
-                                                              const FMGFXMaterialLayerOutputs& PrevOutputs)
+                                                              const FMGFXMaterialUVsAndFilterWidth& UVs, const FMGFXMaterialLayerOutputs& PrevOutputs)
 {
 	// collect expressions for this layers output
 	FMGFXMaterialLayerOutputs LayerOutputs;
@@ -667,19 +670,53 @@ FMGFXMaterialLayerOutputs FMGFXMaterialEditor::Generate_Layer(FMGFXMaterialBuild
 
 
 	// generate transform uvs
-	UMaterialExpressionNamedRerouteUsage* ParentUVsExp = Builder.CreateNamedRerouteUsage(NodePos, InputUVsReroute);
+	UMaterialExpressionNamedRerouteUsage* ParentUVsUsageExp = Builder.CreateNamedRerouteUsage(NodePos, UVs.UVsExp);
 
 	NodePos.X += GridSize * 15;
 
-	// apply layer transform (if needed), and store as a reroute for children (if needed)
-	const bool bCreateReroute = Layer->HasLayers();
-	UMaterialExpression* UVsExp = Generate_TransformUVs(Builder, NodePos, Layer->Transform, ParentUVsExp, ParamPrefix, ParamGroup, bCreateReroute);
+	// apply layer transform. this may just return the parent uvs if optimized out
+	UMaterialExpression* UVsExp = Generate_TransformUVs(Builder, NodePos, Layer->Transform, ParentUVsUsageExp, ParamPrefix, ParamGroup);
 
+	// store as a reroute for any children
+	const bool bCreateReroute = Layer->HasLayers();
 	if (bCreateReroute)
 	{
-		LayerOutputs.UVsExp = Cast<UMaterialExpressionNamedRerouteDeclaration>(UVsExp);
+		// output to named reroute
+		LayerOutputs.UVs.UVsExp = Builder.CreateNamedReroute(NodePos, FName(ParamPrefix + "UVs"));
+		Builder.Connect(UVsExp, "", LayerOutputs.UVs.UVsExp, "");
+		// treat this as the uvs expression for layer
+		UVsExp = LayerOutputs.UVs.UVsExp;
+
+		NodePos.X += GridSize * 15;
+	}
+	else
+	{
+		// reuse parent UVs
+		LayerOutputs.UVs.UVsExp = UVs.UVsExp;
 	}
 
+	// recalculate filter width to use for these uvs if the SDF gradient can ever be scaled
+	const bool bNoOptimization = Layer->Transform.bAnimatable || MGFXMaterial->bAllAnimatable;
+	const bool bHasModifiedScale = !(Layer->Transform.Scale - FVector2f::One()).IsNearlyZero();
+	if (bNoOptimization || bHasModifiedScale)
+	{
+		UMaterialExpressionMaterialFunctionCall* UVFilterFuncExp = Builder.CreateFunction(
+			NodePos + FVector2D(0, GridSize * 8),
+			TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_FilterWidth.MF_MGFX_FilterWidth")));
+		Builder.Connect(UVsExp, "", UVFilterFuncExp, "");
+
+		NodePos.X += GridSize * 15;
+
+		LayerOutputs.UVs.FilterWidthExp = Builder.CreateNamedReroute(NodePos + FVector2D(0, GridSize * 8), FName(ParamPrefix + "FilterWidth"));
+		Builder.Connect(UVFilterFuncExp, "", LayerOutputs.UVs.FilterWidthExp, "");
+
+		NodePos.X += GridSize * 15;
+	}
+	else
+	{
+		// reuse parent filter width
+		LayerOutputs.UVs.FilterWidthExp = UVs.FilterWidthExp;
+	}
 
 	// generate children layers bottom to top
 	FMGFXMaterialLayerOutputs ChildOutputs = LayerOutputs;
@@ -687,8 +724,7 @@ FMGFXMaterialLayerOutputs FMGFXMaterialEditor::Generate_Layer(FMGFXMaterialBuild
 	{
 		const UMGFXMaterialLayer* ChildLayer = Layer->GetLayer(Idx);
 
-		check(LayerOutputs.UVsExp);
-		ChildOutputs = Generate_Layer(Builder, NodePos, ChildLayer, LayerOutputs.UVsExp, ChildOutputs);
+		ChildOutputs = Generate_Layer(Builder, NodePos, ChildLayer, LayerOutputs.UVs, ChildOutputs);
 	}
 
 
@@ -699,7 +735,8 @@ FMGFXMaterialLayerOutputs FMGFXMaterialEditor::Generate_Layer(FMGFXMaterialBuild
 		LayerOutputs.ShapeExp = Generate_Shape(Builder, NodePos, Layer->Shape, UVsExp, ParamPrefix, ParamGroup);
 
 		// the shape visuals, including all fills and strokes
-		LayerOutputs.VisualExp = Generate_ShapeVisuals(Builder, NodePos, Layer->Shape, LayerOutputs.ShapeExp, ParamPrefix, ParamGroup);
+		LayerOutputs.VisualExp = Generate_ShapeVisuals(Builder, NodePos, Layer->Shape, LayerOutputs.ShapeExp,
+		                                               LayerOutputs.UVs.FilterWidthExp, ParamPrefix, ParamGroup);
 	}
 
 	// merge this layer with its children
@@ -748,7 +785,7 @@ FMGFXMaterialLayerOutputs FMGFXMaterialEditor::Generate_Layer(FMGFXMaterialBuild
 
 UMaterialExpression* FMGFXMaterialEditor::Generate_TransformUVs(FMGFXMaterialBuilder& Builder, FVector2D& NodePos,
                                                                 const FMGFXShapeTransform2D& Transform, UMaterialExpression* InUVsExp,
-                                                                const FString& ParamPrefix, const FName& ParamGroup, bool bCreateReroute)
+                                                                const FString& ParamPrefix, const FName& ParamGroup)
 {
 	// points to the last expression from each operation, since some may be skipped due to optimization
 	UMaterialExpression* LastInputExp = InUVsExp;
@@ -816,16 +853,6 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_TransformUVs(FMGFXMaterialBui
 		Builder.Connect(LastInputExp, "", ScaleUVsExp, "A");
 		Builder.Connect(ScaleValueExp, "", ScaleUVsExp, "B");
 		LastInputExp = ScaleUVsExp;
-
-		NodePos.X += GridSize * 15;
-	}
-
-	if (bCreateReroute)
-	{
-		// output to named reroute
-		UMaterialExpressionNamedRerouteDeclaration* UVsRerouteExp = Builder.CreateNamedReroute(NodePos, FName(ParamPrefix + "UVs"));
-		Builder.Connect(LastInputExp, "", UVsRerouteExp, "");
-		LastInputExp = UVsRerouteExp;
 
 		NodePos.X += GridSize * 15;
 	}
@@ -976,8 +1003,8 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_Shape(FMGFXMaterialBuilder& B
 	return ShapeExp;
 }
 
-UMaterialExpression* FMGFXMaterialEditor::Generate_ShapeVisuals(FMGFXMaterialBuilder& Builder, FVector2D& NodePos,
-                                                                const UMGFXMaterialShape* Shape, UMaterialExpression* ShapeExp,
+UMaterialExpression* FMGFXMaterialEditor::Generate_ShapeVisuals(FMGFXMaterialBuilder& Builder, FVector2D& NodePos, const UMGFXMaterialShape* Shape,
+                                                                UMaterialExpression* ShapeExp, UMaterialExpressionNamedRerouteDeclaration* FilterWidthExp,
                                                                 const FString& ParamPrefix, const FName& ParamGroup)
 {
 	// TODO: support multiple visuals
@@ -986,11 +1013,11 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_ShapeVisuals(FMGFXMaterialBui
 	{
 		if (const UMGFXMaterialShapeFill* Fill = Cast<UMGFXMaterialShapeFill>(Visual))
 		{
-			return Generate_ShapeFill(Builder, NodePos, Fill, ShapeExp, ParamPrefix, ParamGroup);
+			return Generate_ShapeFill(Builder, NodePos, Fill, ShapeExp, FilterWidthExp, ParamPrefix, ParamGroup);
 		}
 		else if (const UMGFXMaterialShapeStroke* const Stroke = Cast<UMGFXMaterialShapeStroke>(Visual))
 		{
-			return Generate_ShapeStroke(Builder, NodePos, Stroke, ShapeExp, ParamPrefix, ParamGroup);
+			return Generate_ShapeStroke(Builder, NodePos, Stroke, ShapeExp, FilterWidthExp, ParamPrefix, ParamGroup);
 		}
 		// TODO: combine visuals, don't just use the last one
 	}
@@ -1086,10 +1113,11 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_Vector2Parameter(FMGFXMateria
 
 UMaterialExpression* FMGFXMaterialEditor::Generate_ShapeFill(FMGFXMaterialBuilder& Builder, FVector2D& NodePos,
                                                              const UMGFXMaterialShapeFill* Fill, UMaterialExpression* ShapeExp,
+                                                             UMaterialExpressionNamedRerouteDeclaration* FilterWidthExp,
                                                              const FString& ParamPrefix, const FName& ParamGroup)
 {
 	// add filter width input
-	UMaterialExpressionNamedRerouteUsage* FilterWidthExp = Builder.CreateNamedRerouteUsage(NodePos + FVector2D(0, GridSize * 8), Reroute_FilterWidth);
+	UMaterialExpressionNamedRerouteUsage* FilterWidthUsageExp = Builder.CreateNamedRerouteUsage(NodePos + FVector2D(0, GridSize * 8), FilterWidthExp);
 
 	// optionally enable filter bias
 	UMaterialExpressionStaticBool* EnableBiasExp = nullptr;
@@ -1105,7 +1133,7 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_ShapeFill(FMGFXMaterialBuilde
 	UMaterialExpressionMaterialFunctionCall* FillExp = Builder.CreateFunction(
 		NodePos, TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Fill.MF_MGFX_Fill")));
 	Builder.Connect(ShapeExp, "SDF", FillExp, "SDF");
-	Builder.Connect(FilterWidthExp, "", FillExp, "FilterWidth");
+	Builder.Connect(FilterWidthUsageExp, "", FillExp, "FilterWidth");
 	if (EnableBiasExp)
 	{
 		Builder.Connect(EnableBiasExp, "", FillExp, "EnableFilterBias");
@@ -1134,6 +1162,7 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_ShapeFill(FMGFXMaterialBuilde
 
 UMaterialExpression* FMGFXMaterialEditor::Generate_ShapeStroke(FMGFXMaterialBuilder& Builder, FVector2D& NodePos,
                                                                const UMGFXMaterialShapeStroke* Stroke, UMaterialExpression* ShapeExp,
+                                                               UMaterialExpressionNamedRerouteDeclaration* FilterWidthExp,
                                                                const FString& ParamPrefix, const FName& ParamGroup)
 {
 	// add stroke width input
@@ -1142,7 +1171,7 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_ShapeStroke(FMGFXMaterialBuil
 	SET_PROP(StrokeWidthExp, DefaultValue, Stroke->StrokeWidth);
 
 	// add filter width input
-	UMaterialExpressionNamedRerouteUsage* FilterWidthExp = Builder.CreateNamedRerouteUsage(NodePos + FVector2D(0, GridSize * 14), Reroute_FilterWidth);
+	UMaterialExpressionNamedRerouteUsage* FilterWidthUsageExp = Builder.CreateNamedRerouteUsage(NodePos + FVector2D(0, GridSize * 14), FilterWidthExp);
 
 	NodePos.X += GridSize * 15;
 
@@ -1151,7 +1180,7 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_ShapeStroke(FMGFXMaterialBuil
 		NodePos, TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Stroke.MF_MGFX_Stroke")));
 	Builder.Connect(ShapeExp, "SDF", StrokeExp, "SDF");
 	Builder.Connect(StrokeWidthExp, "", StrokeExp, "StrokeWidth");
-	Builder.Connect(FilterWidthExp, "", StrokeExp, "FilterWidth");
+	Builder.Connect(FilterWidthUsageExp, "", StrokeExp, "FilterWidth");
 
 	NodePos.X += GridSize * 15;
 

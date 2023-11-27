@@ -19,14 +19,26 @@ class UMGFXMaterialShapeFill;
 class UMGFXMaterialShapeStroke;
 class UMaterialExpressionNamedRerouteDeclaration;
 
+/**
+ * Represents a paired set of UVs and matching calculated FilterWidth.
+ */
+struct FMGFXMaterialUVsAndFilterWidth
+{
+	/** The uvs expression. */
+	UMaterialExpressionNamedRerouteDeclaration* UVsExp = nullptr;
+
+	/** The calculated filter width for the UVs. */
+	UMaterialExpressionNamedRerouteDeclaration* FilterWidthExp = nullptr;
+};
+
 
 /**
  * Tracks output expressions for a single layer in a generated material.
  */
 struct FMGFXMaterialLayerOutputs
 {
-	/** The uvs expression for the layer. */
-	UMaterialExpressionNamedRerouteDeclaration* UVsExp = nullptr;
+	/** The UVs and calculated filter width of this layer. */
+	FMGFXMaterialUVsAndFilterWidth UVs;
 
 	/** The shape sdf expression for the layer. */
 	UMaterialExpression* ShapeExp = nullptr;
@@ -157,12 +169,12 @@ private:
 
 	/** Generate a layer and all it's children recursively. */
 	FMGFXMaterialLayerOutputs Generate_Layer(FMGFXMaterialBuilder& Builder, FVector2D& NodePos, const UMGFXMaterialLayer* Layer,
-	                                         UMaterialExpressionNamedRerouteDeclaration* InputUVsReroute, const FMGFXMaterialLayerOutputs& PrevOutputs);
+	                                         const FMGFXMaterialUVsAndFilterWidth& UVs, const FMGFXMaterialLayerOutputs& PrevOutputs);
 
 	/** Generate material nodes to apply a 2D transform. */
 	UMaterialExpression* Generate_TransformUVs(FMGFXMaterialBuilder& Builder, FVector2D& NodePos,
 	                                           const FMGFXShapeTransform2D& Transform, UMaterialExpression* InUVsExp,
-	                                           const FString& ParamPrefix, const FName& ParamGroup, bool bCreateReroute = true);
+	                                           const FString& ParamPrefix, const FName& ParamGroup);
 
 	/** Generate material nodes to create a shape. */
 	UMaterialExpression* Generate_Shape(FMGFXMaterialBuilder& Builder, FVector2D& NodePos, const UMGFXMaterialShape* Shape,
@@ -173,7 +185,8 @@ private:
 	 * Returns an unpremultiplied 4-channel RGBA expression.
 	 */
 	UMaterialExpression* Generate_ShapeVisuals(FMGFXMaterialBuilder& Builder, FVector2D& NodePos, const UMGFXMaterialShape* Shape,
-	                                           UMaterialExpression* ShapeExp, const FString& ParamPrefix, const FName& ParamGroup);
+	                                           UMaterialExpression* ShapeExp, UMaterialExpressionNamedRerouteDeclaration* FilterWidthExp,
+	                                           const FString& ParamPrefix, const FName& ParamGroup);
 
 	/** Merge two visual (RGBA) layers. */
 	UMaterialExpression* Generate_MergeVisual(FMGFXMaterialBuilder& Builder, FVector2D& NodePos,
@@ -196,14 +209,16 @@ private:
 	 * Returns an unpremultiplied 4-channel RGBA expression.
 	 */
 	UMaterialExpression* Generate_ShapeFill(FMGFXMaterialBuilder& Builder, FVector2D& NodePos, const UMGFXMaterialShapeFill* Fill,
-	                                        UMaterialExpression* ShapeExp, const FString& ParamPrefix, const FName& ParamGroup);
+	                                        UMaterialExpression* ShapeExp, UMaterialExpressionNamedRerouteDeclaration* FilterWidthExp,
+	                                        const FString& ParamPrefix, const FName& ParamGroup);
 
 	/**
 	 * Generate material nodes for a shape stroke.
 	 * Returns an unpremultiplied 4-channel RGBA expression.
 	 */
 	UMaterialExpression* Generate_ShapeStroke(FMGFXMaterialBuilder& Builder, FVector2D& NodePos, const UMGFXMaterialShapeStroke* Stroke,
-	                                          UMaterialExpression* ShapeExp, const FString& ParamPrefix, const FName& ParamGroup);
+	                                          UMaterialExpression* ShapeExp, UMaterialExpressionNamedRerouteDeclaration* FilterWidthExp,
+	                                          const FString& ParamPrefix, const FName& ParamGroup);
 
 	void DeleteSelectedLayers();
 	bool CanDeleteSelectedLayers();
@@ -221,7 +236,7 @@ public:
 	static const FName LayersTabId;
 	static const FName DetailsTabId;
 	static const FName Reroute_CanvasUVs;
-	static const FName Reroute_FilterWidth;
+	static const FName Reroute_CanvasFilterWidth;
 	static const FName Reroute_LayersOutput;
 	static const int32 GridSize;
 
