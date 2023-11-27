@@ -256,4 +256,7 @@ protected:
 
 	/** Snap a scale to the grid. */
 	FVector2D SnapScaleToGrid(FVector2D InScale) const;
+
+	/** Return the window DPI scale * application scale. */
+	float GetDPIScale() const;
 };

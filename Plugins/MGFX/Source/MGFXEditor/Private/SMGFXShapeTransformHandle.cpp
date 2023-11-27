@@ -228,6 +228,10 @@ FReply SMGFXShapeTransformHandle::PerformMouseMoveTranslate(const FGeometry& MyG
 	{
 		DragDelta *= FVector2D(0.f, 1.f);
 	}
+
+	// account for window dpi and application scale
+	DragDelta /= GetDPIScale();
+
 	// we're tracking the total delta for accuracy,
 	// so add to the original location recorded on drag start
 	const FVector2D OffsetLocation = OriginalLocation + DragDelta;
@@ -332,6 +336,9 @@ FReply SMGFXShapeTransformHandle::PerformMouseMoveScale(const FGeometry& MyGeome
 		DragDelta = FVector2D(DragDeltaSum, DragDeltaSum);
 	}
 
+	// account for window dpi and application scale
+	DragDelta /= GetDPIScale();
+
 	// dragging the same distance of the handle length will cause the scale to change by +/- 1.0
 	const float LocalHandleLength = HandleSpaceTransform.TransformVector(FVector2D(HandleLength, 0.f)).Length();
 	const float ScaleSensitivity = 1.f / LocalHandleLength;
@@ -378,6 +385,17 @@ FVector2D SMGFXShapeTransformHandle::SnapScaleToGrid(FVector2D InScale) const
 	return FVector2D(
 		FMath::RoundHalfFromZero(InScale.X / GridSize) * GridSize,
 		FMath::RoundHalfFromZero(InScale.Y / GridSize) * GridSize);
+}
+
+float SMGFXShapeTransformHandle::GetDPIScale() const
+{
+	float DPIScale = FSlateApplication::Get().GetApplicationScale();
+	const TSharedPtr<SWindow> WidgetWindow = FSlateApplication::Get().FindWidgetWindow(this->AsShared());
+	if (WidgetWindow.IsValid())
+	{
+		DPIScale *= WidgetWindow->GetNativeWindow()->GetDPIScaleFactor();
+	}
+	return DPIScale;
 }
 
 void SMGFXShapeTransformHandle::OnMouseEnter(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
