@@ -377,93 +377,15 @@ void FMGFXMaterialEditor::NotifyPostChange(const FPropertyChangedEvent& Property
 		return;
 	}
 
-	FProperty* ActiveProperty = PropertyThatChanged->GetActiveNode()->GetValue();
-	const FName PropertyName = ActiveProperty->GetFName();
-	const FName MemberPropertyName = PropertyChangedEvent.GetMemberPropertyName();
-
 	if (PropertyChangedEvent.ChangeType == EPropertyChangeType::Interactive)
 	{
-		// we could set the default values on the Material's expressions here, and it would update fairly responsively,
-		// but it's not perfect, and flickering occurs. Instead we modify the MID which has perfect responsiveness, and any
-		// temporary modifications will be correctly replaced once the material is generated.
-
-		// this unfortunately only works if the params are not optimized out, so in that case, update the material expressions directly.
-
-		// for each edited layer (almost always just 1 during interactive edit)
-		for (int32 Idx = 0; Idx < PropertyChangedEvent.GetNumObjectsBeingEdited(); ++Idx)
-		{
-			const UObject* EditedObject = PropertyChangedEvent.GetObjectBeingEdited(Idx);
-			if (const UMGFXMaterialLayer* EditedLayer = Cast<UMGFXMaterialLayer>(EditedObject))
-			{
-				// editing a layer
-				if (MemberPropertyName == GET_MEMBER_NAME_CHECKED(UMGFXMaterialLayer, Transform))
-				{
-					if (TDoubleLinkedList<FProperty*>::TDoubleLinkedListNode* ParentNode = PropertyThatChanged->GetActiveNode()->GetPrevNode())
-					{
-						const FName ParentPropertyName = ParentNode->GetValue()->GetFName();
-						if (PropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Location))
-						{
-							// setting Location
-							const FString ParamPrefix = EditedLayer->Name + ".";
-							PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + "TranslateX"), EditedLayer->Transform.Location.X);
-							PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + "TranslateY"), EditedLayer->Transform.Location.Y);
-						}
-						else if (PropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Rotation))
-						{
-							// setting Rotation
-							const float NewValue = EditedLayer->Transform.Rotation;
-							const FString ParamName = TEXT("Rotation");
-							const FName ParamFullName = FName(EditedLayer->Name + "." + ParamName);
-
-							PreviewMaterial->SetScalarParameterValue(ParamFullName, NewValue);
-						}
-						else if (PropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Scale))
-						{
-							// setting Scale
-							const FString ParamPrefix = EditedLayer->Name + ".";
-							PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + "ScaleX"), EditedLayer->Transform.Scale.X);
-							PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + "ScaleY"), EditedLayer->Transform.Scale.Y);
-						}
-						else if (ParentPropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Location))
-						{
-							// setting X or Y of Location
-							const FString ParamPrefix = EditedLayer->Name + ".";
-
-							const bool bIsX = PropertyName == GET_MEMBER_NAME_CHECKED(FVector2f, X);
-							const float NewValue = bIsX ? EditedLayer->Transform.Location.X : EditedLayer->Transform.Location.Y;
-							const FString ParamName = bIsX ? TEXT("TranslateX") : TEXT("TranslateY");
-
-							PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + ParamName), NewValue);
-						}
-						else if (ParentPropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Scale))
-						{
-							// setting X or Y of Scale
-							const FString ParamPrefix = EditedLayer->Name + ".";
-
-							const bool bIsX = PropertyName == GET_MEMBER_NAME_CHECKED(FVector2f, X);
-							const float NewValue = bIsX ? EditedLayer->Transform.Scale.X : EditedLayer->Transform.Scale.Y;
-							const FString ParamName = bIsX ? TEXT("ScaleX") : TEXT("ScaleY");
-
-							PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + ParamName), NewValue);
-						}
-					}
-				}
-			}
-			else if (const UMGFXMaterialShapeStroke* EditedStroke = Cast<UMGFXMaterialShapeStroke>(EditedObject))
-			{
-				if (PropertyName == GET_MEMBER_NAME_CHECKED(UMGFXMaterialShapeStroke, StrokeWidth))
-				{
-					if (const UMGFXMaterialLayer* OwningLayer = Cast<UMGFXMaterialLayer>(EditedStroke->GetOuter()->GetOuter()))
-					{
-						const FString ParamPrefix = OwningLayer->Name + ".";
-
-						PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + "StrokeWidth"), EditedStroke->StrokeWidth);
-					}
-				}
-			}
-		}
+		NotifyPostChangeInteractive(PropertyChangedEvent, PropertyThatChanged);
 		return;
 	}
+
+	const FProperty* ActiveProperty = PropertyThatChanged->GetActiveNode()->GetValue();
+	const FName PropertyName = ActiveProperty->GetFName();
+	const FName MemberPropertyName = PropertyChangedEvent.GetMemberPropertyName();
 
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(UMGFXMaterial, Material))
 	{
@@ -479,6 +401,136 @@ void FMGFXMaterialEditor::NotifyPostChange(const FPropertyChangedEvent& Property
 	// TODO: expose option for auto-regenerate on value change
 	// TODO: filter properties that cause regenerate
 	RegenerateMaterial();
+}
+
+void FMGFXMaterialEditor::NotifyPostChangeInteractive(const FPropertyChangedEvent& PropertyChangedEvent, FEditPropertyChain* PropertyThatChanged)
+{
+	// we could set the default values on the Material's expressions here, and it would update fairly responsively,
+	// but it's not perfect, and flickering occurs. Instead we modify the MID which has perfect responsiveness, and any
+	// temporary modifications will be correctly replaced once the material is generated.
+
+	// this unfortunately only works if the params are not optimized out, so it's recommended to work without
+	// optimizations enabled, then enable them afterwards.
+
+	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
+	const FName MemberPropertyName = PropertyChangedEvent.GetMemberPropertyName();
+
+	for (int32 Idx = 0; Idx < PropertyChangedEvent.GetNumObjectsBeingEdited(); ++Idx)
+	{
+		const UObject* EditedObject = PropertyChangedEvent.GetObjectBeingEdited(Idx);
+		if (const UMGFXMaterialLayer* EditedLayer = Cast<UMGFXMaterialLayer>(EditedObject))
+		{
+			const FString ParamPrefix = EditedLayer->Name + ".";
+
+			// editing a layer transform
+			if (MemberPropertyName == GET_MEMBER_NAME_CHECKED(UMGFXMaterialLayer, Transform))
+			{
+				if (TDoubleLinkedList<FProperty*>::TDoubleLinkedListNode* ParentNode = PropertyThatChanged->GetActiveNode()->GetPrevNode())
+				{
+					const FName ParentPropertyName = ParentNode->GetValue()->GetFName();
+					if (PropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Location))
+					{
+						// setting Location
+						PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + "TranslateX"), EditedLayer->Transform.Location.X);
+						PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + "TranslateY"), EditedLayer->Transform.Location.Y);
+					}
+					else if (PropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Rotation))
+					{
+						// setting Rotation
+						const float NewValue = EditedLayer->Transform.Rotation;
+						const FString ParamName = TEXT("Rotation");
+
+						PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + ParamName), NewValue);
+					}
+					else if (PropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Scale))
+					{
+						// setting Scale
+						PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + "ScaleX"), EditedLayer->Transform.Scale.X);
+						PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + "ScaleY"), EditedLayer->Transform.Scale.Y);
+					}
+					else if (ParentPropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Location))
+					{
+						// setting X or Y of Location
+						const bool bIsX = PropertyName == GET_MEMBER_NAME_CHECKED(FVector2f, X);
+						const float NewValue = bIsX ? EditedLayer->Transform.Location.X : EditedLayer->Transform.Location.Y;
+						const FString ParamName = bIsX ? TEXT("TranslateX") : TEXT("TranslateY");
+
+						PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + ParamName), NewValue);
+					}
+					else if (ParentPropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Scale))
+					{
+						// setting X or Y of Scale
+						const bool bIsX = PropertyName == GET_MEMBER_NAME_CHECKED(FVector2f, X);
+						const float NewValue = bIsX ? EditedLayer->Transform.Scale.X : EditedLayer->Transform.Scale.Y;
+						const FString ParamName = bIsX ? TEXT("ScaleX") : TEXT("ScaleY");
+
+						PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + ParamName), NewValue);
+					}
+				}
+			}
+		}
+		else if (const UMGFXMaterialShape* EditedShape = Cast<UMGFXMaterialShape>(EditedObject))
+		{
+			if (const UMGFXMaterialLayer* OwningLayer = Cast<UMGFXMaterialLayer>(EditedShape->GetOuter()))
+			{
+				const FString ParamPrefix = OwningLayer->Name + ".";
+
+				// editing a shape
+				for (const FMGFXMaterialShapeInput& Input : EditedShape->GetInputs())
+				{
+					// member property name is all that matters, the entire parameter will be updated
+					if (MemberPropertyName == Input.Name)
+					{
+						switch (Input.Type)
+						{
+						case EMGFXMaterialShapeInputType::Float:
+							PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + Input.Name), Input.Value.R);
+							break;
+						case EMGFXMaterialShapeInputType::Vector2:
+							PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + Input.Name + "X"), Input.Value.R);
+							PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + Input.Name + "Y"), Input.Value.G);
+							break;
+						case EMGFXMaterialShapeInputType::Vector3:
+						case EMGFXMaterialShapeInputType::Vector4:
+							PreviewMaterial->SetVectorParameterValue(FName(ParamPrefix + Input.Name), Input.Value);
+							break;
+						default: ;
+						}
+					}
+				}
+			}
+		}
+		else if (const UMGFXMaterialShapeFill* EditedFill = Cast<UMGFXMaterialShapeFill>(EditedObject))
+		{
+			// editing fill visual
+			if (const UMGFXMaterialLayer* OwningLayer = Cast<UMGFXMaterialLayer>(EditedFill->GetOuter()->GetOuter()))
+			{
+				const FString ParamPrefix = OwningLayer->Name + ".";
+
+				if (PropertyName == GET_MEMBER_NAME_CHECKED(UMGFXMaterialShapeFill, Color))
+				{
+					PreviewMaterial->SetVectorParameterValue(FName(ParamPrefix + "Color"), EditedFill->Color);
+				}
+			}
+		}
+		else if (const UMGFXMaterialShapeStroke* EditedStroke = Cast<UMGFXMaterialShapeStroke>(EditedObject))
+		{
+			if (const UMGFXMaterialLayer* OwningLayer = Cast<UMGFXMaterialLayer>(EditedStroke->GetOuter()->GetOuter()))
+			{
+				const FString ParamPrefix = OwningLayer->Name + ".";
+
+				// editing stroke visual
+				if (PropertyName == GET_MEMBER_NAME_CHECKED(UMGFXMaterialShapeStroke, Color))
+				{
+					PreviewMaterial->SetVectorParameterValue(FName(ParamPrefix + "Color"), EditedStroke->Color);
+				}
+				else if (PropertyName == GET_MEMBER_NAME_CHECKED(UMGFXMaterialShapeStroke, StrokeWidth))
+				{
+					PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + "StrokeWidth"), EditedStroke->StrokeWidth);
+				}
+			}
+		}
+	}
 }
 
 bool FMGFXMaterialEditor::MatchesContext(const FTransactionContext& InContext,

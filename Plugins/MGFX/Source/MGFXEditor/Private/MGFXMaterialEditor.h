@@ -115,6 +115,8 @@ public:
 	virtual void NotifyPreChange(FProperty* PropertyAboutToChange) override;
 	virtual void NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FEditPropertyChain* PropertyThatChanged) override;
 
+	void NotifyPostChangeInteractive(const FPropertyChangedEvent& PropertyChangedEvent, FEditPropertyChain* PropertyThatChanged);
+
 	// FEditorUndoClient
 	virtual bool MatchesContext(const FTransactionContext& InContext,
 	                            const TArray<TPair<UObject*, FTransactionObjectEvent>>& TransactionObjectContexts) const override;

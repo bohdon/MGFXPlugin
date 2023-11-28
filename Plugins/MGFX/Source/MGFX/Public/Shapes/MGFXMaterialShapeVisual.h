@@ -58,7 +58,7 @@ public:
 	 * Compute the filter width for this shape individually instead of using a shared filter width.
 	 * Useful when performing heavily non-uniform scaling.
 	 */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Fill")
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Stroke")
 	bool bComputeFilterWidth = false;
 
 	virtual FLinearColor GetColor() const override { return Color; }

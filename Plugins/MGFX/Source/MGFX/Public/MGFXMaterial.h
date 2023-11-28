@@ -71,7 +71,7 @@ public:
 
 	/**
 	 * Don't optimize out any parameters to allow for animating every property.
-	 * This can be much more expensive so use sparingly.
+	 * This can be expensive so use sparingly.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Advanced")
 	bool bAllAnimatable = false;

@@ -493,6 +493,7 @@ void SMGFXMaterialEditorCanvas::OnLayerMoveFinished(bool bWasModified)
 		FPropertyChangedEvent PropertyChangedEvent(TransformProp, EPropertyChangeType::ValueSet, {SelectedLayer});
 		PropertyChangedEvent.SetActiveMemberProperty(TransformProp);
 
+		SelectedLayer->PostEditChangeProperty(PropertyChangedEvent);
 		MGFXMaterialEditor.Pin()->NotifyPostChange(PropertyChangedEvent, &PropertyChain);
 	}
 }
@@ -512,6 +513,7 @@ void SMGFXMaterialEditorCanvas::SendLayerTransformPropertyChangeEvent(UMGFXMater
 	FPropertyChangedEvent PropertyChangedEvent(Property, ChangeType, {Layer});
 	PropertyChangedEvent.SetActiveMemberProperty(TransformProp);
 
+	Layer->PostEditChangeProperty(PropertyChangedEvent);
 	MGFXMaterialEditor.Pin()->NotifyPostChange(PropertyChangedEvent, &PropertyChain);
 }
 
