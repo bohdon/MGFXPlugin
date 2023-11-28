@@ -31,6 +31,13 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Fill")
 	bool bEnableFilterBias = false;
 
+	/**
+	 * Compute the filter width for this shape individually instead of using a shared filter width.
+	 * Useful when performing heavily non-uniform scaling.
+	 */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Fill")
+	bool bComputeFilterWidth = false;
+
 	virtual FLinearColor GetColor() const override { return Color; }
 };
 
@@ -46,6 +53,13 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "Stroke")
 	float StrokeWidth = 3.f;
+
+	/**
+	 * Compute the filter width for this shape individually instead of using a shared filter width.
+	 * Useful when performing heavily non-uniform scaling.
+	 */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Fill")
+	bool bComputeFilterWidth = false;
 
 	virtual FLinearColor GetColor() const override { return Color; }
 };

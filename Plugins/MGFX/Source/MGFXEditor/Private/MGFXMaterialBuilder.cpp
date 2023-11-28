@@ -118,6 +118,21 @@ UMaterialExpressionNamedRerouteDeclaration* FMGFXMaterialBuilder::FindNamedRerou
 	return nullptr;
 }
 
+UMaterialExpressionParameter* FMGFXMaterialBuilder::FindNamedParameter(const FName ParameterName) const
+{
+	for (TObjectPtr<UMaterialExpression> Expression : Material->GetExpressions())
+	{
+		if (UMaterialExpressionParameter* ParamExp = Cast<UMaterialExpressionParameter>(Expression))
+		{
+			if (ParamExp->GetParameterName().IsEqual(ParameterName))
+			{
+				return ParamExp;
+			}
+		}
+	}
+	return nullptr;
+}
+
 UMaterialExpressionComment* FMGFXMaterialBuilder::CreateComment(const FVector2D& NodePos, const FString& Text, FLinearColor Color) const
 {
 	UMaterialExpressionComment* CommentExp = Create<UMaterialExpressionComment>(NodePos);

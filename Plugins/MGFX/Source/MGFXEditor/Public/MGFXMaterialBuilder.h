@@ -69,6 +69,17 @@ struct MGFXEDITOR_API FMGFXMaterialBuilder
 	/** Find a named reroute. */
 	UMaterialExpressionNamedRerouteDeclaration* FindNamedReroute(const FName Name) const;
 
+	UMaterialExpressionParameter* FindNamedParameter(const FName ParameterName) const;
+
+	template <class T>
+	T* FindNamedParameter(const FName ParameterName) const
+	{
+		static_assert(TPointerIsConvertibleFromTo<T, UMaterialExpressionParameter>::Value,
+		              "'T' template parameter to FindNamedParameter must be derived from UMaterialExpressionParameter");
+
+		return Cast<T>(FindNamedParameter(ParameterName));
+	}
+
 	/** Connect two expressions using explicit pin names. */
 	bool Connect(UMaterialExpression* From, const FString& FromPin, UMaterialExpression* To, const FString& ToPin) const;
 

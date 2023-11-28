@@ -8,6 +8,7 @@
 #include "MGFXMaterialEditor.h"
 #include "MGFXMaterialEditorCanvasToolBar.h"
 #include "MGFXMaterialEditorCommands.h"
+#include "MGFXPropertyMacros.h"
 #include "SArtboardPanel.h"
 #include "SlateOptMacros.h"
 #include "SMGFXShapeTransformHandle.h"
@@ -32,9 +33,12 @@ void SMGFXMaterialEditorCanvas::Construct(const FArguments& InArgs)
 	MGFXMaterialEditor = InArgs._MGFXMaterialEditor;
 
 	MGFXMaterialEditor.Pin()->OnLayerSelectionChangedEvent.AddSP(this, &SMGFXMaterialEditorCanvas::OnLayerSelectionChanged);
-	MGFXMaterialEditor.Pin()->OnMaterialChangedEvent.AddSP(this, &SMGFXMaterialEditorCanvas::OnMaterialChanged);
+	MGFXMaterialEditor.Pin()->OnPreviewMaterialChangedEvent.AddSP(this, &SMGFXMaterialEditorCanvas::OnPreviewMaterialChanged);
 
-	PreviewImageBrush.SetResourceObject(MGFXMaterialEditor.Pin()->GetGeneratedMaterial());
+	if (UMaterialInstanceDynamic* PreviewMaterial = MGFXMaterialEditor.Pin()->GetPreviewMaterial())
+	{
+		PreviewImageBrush.SetResourceObject(PreviewMaterial);
+	}
 
 	// TODO: expose as view option
 	bAlwaysShowArtboardBorder = true;
@@ -168,7 +172,7 @@ void SMGFXMaterialEditorCanvas::UpdateArtboardSize()
 	}
 }
 
-void SMGFXMaterialEditorCanvas::OnMaterialChanged(UMaterial* NewMaterial)
+void SMGFXMaterialEditorCanvas::OnPreviewMaterialChanged(UMaterialInterface* NewMaterial)
 {
 	PreviewImageBrush.SetResourceObject(NewMaterial);
 }
@@ -431,7 +435,11 @@ void SMGFXMaterialEditorCanvas::OnSetLayerLocation(FVector2D NewLocation)
 	{
 		SelectedLayer->Modify();
 		SelectedLayer->Transform.Location = FVector2f(NewLocation);
-		// TODO: update MID
+
+		// send property change event
+		FProperty* LocationProp = PropertyAccessUtil::FindPropertyByName(
+			GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Location), FMGFXShapeTransform2D::StaticStruct());
+		SendLayerTransformPropertyChangeEvent(SelectedLayer, EPropertyChangeType::Interactive, LocationProp);
 	}
 }
 
@@ -441,7 +449,11 @@ void SMGFXMaterialEditorCanvas::OnSetLayerRotation(float NewRotation)
 	{
 		SelectedLayer->Modify();
 		SelectedLayer->Transform.Rotation = NewRotation;
-		// TODO: update MID
+
+		// send property change event
+		FProperty* RotationProp = PropertyAccessUtil::FindPropertyByName(
+			GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Rotation), FMGFXShapeTransform2D::StaticStruct());
+		SendLayerTransformPropertyChangeEvent(SelectedLayer, EPropertyChangeType::Interactive, RotationProp);
 	}
 }
 
@@ -451,7 +463,11 @@ void SMGFXMaterialEditorCanvas::OnSetLayerScale(FVector2D NewScale)
 	{
 		SelectedLayer->Modify();
 		SelectedLayer->Transform.Scale = FVector2f(NewScale);
-		// TODO: update MID
+
+		// send property change event
+		FProperty* ScaleProp = PropertyAccessUtil::FindPropertyByName(
+			GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Scale), FMGFXShapeTransform2D::StaticStruct());
+		SendLayerTransformPropertyChangeEvent(SelectedLayer, EPropertyChangeType::Interactive, ScaleProp);
 	}
 }
 
@@ -464,9 +480,39 @@ void SMGFXMaterialEditorCanvas::OnLayerMoveFinished(bool bWasModified)
 
 	if (UMGFXMaterialLayer* SelectedLayer = GetSelectedLayer())
 	{
-		// TODO: broadcast event instead?
-		MGFXMaterialEditor.Pin()->RegenerateMaterial();
+		// send final property change event
+		FProperty* TransformProp = PropertyAccessUtil::FindPropertyByName(
+			GET_MEMBER_NAME_CHECKED(UMGFXMaterialLayer, Transform), UMGFXMaterialLayer::StaticClass());
+
+		FEditPropertyChain PropertyChain;
+		PropertyChain.AddHead(TransformProp);
+		PropertyChain.AddTail(TransformProp);
+		PropertyChain.SetActivePropertyNode(TransformProp);
+		PropertyChain.SetActiveMemberPropertyNode(TransformProp);
+
+		FPropertyChangedEvent PropertyChangedEvent(TransformProp, EPropertyChangeType::ValueSet, {SelectedLayer});
+		PropertyChangedEvent.SetActiveMemberProperty(TransformProp);
+
+		MGFXMaterialEditor.Pin()->NotifyPostChange(PropertyChangedEvent, &PropertyChain);
 	}
+}
+
+void SMGFXMaterialEditorCanvas::SendLayerTransformPropertyChangeEvent(UMGFXMaterialLayer* Layer, EPropertyChangeType::Type ChangeType, FProperty* Property)
+{
+	// send property change event
+	FProperty* TransformProp = PropertyAccessUtil::FindPropertyByName(
+		GET_MEMBER_NAME_CHECKED(UMGFXMaterialLayer, Transform), UMGFXMaterialLayer::StaticClass());
+
+	FEditPropertyChain PropertyChain;
+	PropertyChain.AddHead(TransformProp);
+	PropertyChain.AddTail(Property);
+	PropertyChain.SetActivePropertyNode(Property);
+	PropertyChain.SetActiveMemberPropertyNode(TransformProp);
+
+	FPropertyChangedEvent PropertyChangedEvent(Property, ChangeType, {Layer});
+	PropertyChangedEvent.SetActiveMemberProperty(TransformProp);
+
+	MGFXMaterialEditor.Pin()->NotifyPostChange(PropertyChangedEvent, &PropertyChain);
 }
 
 UMGFXMaterialLayer* SMGFXMaterialEditorCanvas::GetSelectedLayer() const

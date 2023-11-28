@@ -47,8 +47,8 @@ public:
 	/** Update the artboard size to match the material. */
 	void UpdateArtboardSize();
 
-	/** Called when the material asset has been set or changed. */
-	void OnMaterialChanged(UMaterial* NewMaterial);
+	/** Called when the editor preview material has been set or changed. */
+	void OnPreviewMaterialChanged(UMaterialInterface* NewMaterial);
 
 	/** Weak pointer to the owning material editor. */
 	TWeakPtr<FMGFXMaterialEditor> MGFXMaterialEditor;
@@ -126,6 +126,8 @@ protected:
 
 	/** Called when a transform handle is finished moving a layer. */
 	void OnLayerMoveFinished(bool bWasModified);
+
+	void SendLayerTransformPropertyChangeEvent(UMGFXMaterialLayer* Layer, EPropertyChangeType::Type ChangeType, FProperty* Property);
 
 	/** Return the currently selected layer (if there is only one). */
 	UMGFXMaterialLayer* GetSelectedLayer() const;

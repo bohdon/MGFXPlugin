@@ -51,7 +51,10 @@ struct FMGFXMaterialLayerOutputs
 /**
  * Motion graphics editor for MGFX materials.
  */
-class MGFXEDITOR_API FMGFXMaterialEditor : public IMGFXMaterialEditor, public FNotifyHook, public FEditorUndoClient
+class MGFXEDITOR_API FMGFXMaterialEditor : public IMGFXMaterialEditor,
+                                           public FGCObject,
+                                           public FNotifyHook,
+                                           public FEditorUndoClient
 {
 public:
 	FMGFXMaterialEditor();
@@ -74,6 +77,9 @@ public:
 
 	/** Return the material asset being generated. */
 	UMaterial* GetGeneratedMaterial() const;
+
+	/** Return the dynamic instance of the material asset being generated for previewing changes. */
+	UMaterialInstanceDynamic* GetPreviewMaterial() const { return PreviewMaterial; }
 
 	/** Fully regenerate the target material. */
 	void RegenerateMaterial();
@@ -101,9 +107,13 @@ public:
 	/** Called when a layer is added, removed, or reparented by the layers view. */
 	void OnLayersChangedByLayersView();
 
+	// FGCObject
+	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+	virtual FString GetReferencerName() const override { return TEXT("FMGFXMaterialEditor"); }
+
 	// FNotifyHook
 	virtual void NotifyPreChange(FProperty* PropertyAboutToChange) override;
-	virtual void NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FProperty* PropertyThatChanged) override;
+	virtual void NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FEditPropertyChain* PropertyThatChanged) override;
 
 	// FEditorUndoClient
 	virtual bool MatchesContext(const FTransactionContext& InContext,
@@ -111,10 +121,13 @@ public:
 	virtual void PostUndo(bool bSuccess) override;
 	virtual void PostRedo(bool bSuccess) override;
 
-	DECLARE_MULTICAST_DELEGATE_OneParam(FMaterialChangedDelegate, UMaterial* /*NewMaterial*/);
+	DECLARE_MULTICAST_DELEGATE_OneParam(FMaterialChangedDelegate, UMaterialInterface* /*NewMaterial*/);
 
 	/** Called when the material asset has been set or changed. */
 	FMaterialChangedDelegate OnMaterialChangedEvent;
+
+	/** Called when the preview material instance has been set or changed. */
+	FMaterialChangedDelegate OnPreviewMaterialChangedEvent;
 
 	DECLARE_MULTICAST_DELEGATE_OneParam(FLayerSelectionChangedDelegate, const TArray<TObjectPtr<UMGFXMaterialLayer>>& /*SelectedLayers*/);
 
@@ -136,6 +149,9 @@ private:
 	/** The MGFX material asset being edited. */
 	TObjectPtr<UMGFXMaterial> MGFXMaterial;
 
+	/** The dynamic preview material to display in the editor. */
+	TObjectPtr<UMaterialInstanceDynamic> PreviewMaterial;
+
 	/** The currently selected layers. */
 	TArray<TObjectPtr<UMGFXMaterialLayer>> SelectedLayers;
 
@@ -154,6 +170,12 @@ private:
 	TSharedRef<SDockTab> SpawnTab_Canvas(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_Layers(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_Details(const FSpawnTabArgs& Args);
+
+	/** Called when the material asset of the MGFX material has changed to a new asset. */
+	void OnMaterialAssetChanged();
+
+	/** Create or recreate the preview material instance dynamic. */
+	void UpdatePreviewMaterial();
 
 	/** Delete all non-root nodes from a material graph. */
 	void Generate_DeleteAllNodes(FMGFXMaterialBuilder& Builder);

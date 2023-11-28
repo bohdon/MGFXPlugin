@@ -7,6 +7,7 @@
 #include "IMaterialEditor.h"
 #include "MaterialDomain.h"
 #include "MaterialEditorActions.h"
+#include "MaterialPropertyHelpers.h"
 #include "MGFXEditorModule.h"
 #include "MGFXMaterial.h"
 #include "MGFXMaterialEditorCommands.h"
@@ -69,6 +70,7 @@ void FMGFXMaterialEditor::InitMGFXMaterialEditor(const EToolkitMode::Type Mode,
 	check(InMGFXMaterial);
 
 	MGFXMaterial = InMGFXMaterial;
+	UpdatePreviewMaterial();
 
 	FMGFXMaterialEditorCommands::Register();
 	BindCommands();
@@ -229,6 +231,8 @@ void FMGFXMaterialEditor::RegenerateMaterial()
 
 	Builder.RecompileMaterial();
 
+	UpdatePreviewMaterial();
+
 	// TODO: use events to keep this up to date
 	// update canvas artboard
 	CanvasWidget->UpdateArtboardSize();
@@ -250,7 +254,7 @@ UMaterial* FMGFXMaterialEditor::CreateMaterialAsset()
 		if (NewMaterial)
 		{
 			MGFXMaterial->Material = Cast<UMaterial>(NewMaterial);
-			OnMaterialChangedEvent.Broadcast(MGFXMaterial->Material);
+			OnMaterialAssetChanged();
 		}
 	}
 
@@ -356,23 +360,103 @@ void FMGFXMaterialEditor::OnLayersChangedByLayersView()
 	OnLayersChanged();
 }
 
+void FMGFXMaterialEditor::AddReferencedObjects(FReferenceCollector& Collector)
+{
+	Collector.AddReferencedObject(MGFXMaterial);
+	Collector.AddReferencedObject(PreviewMaterial);
+}
+
 void FMGFXMaterialEditor::NotifyPreChange(FProperty* PropertyAboutToChange)
 {
 }
 
-void FMGFXMaterialEditor::NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FProperty* PropertyThatChanged)
+void FMGFXMaterialEditor::NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FEditPropertyChain* PropertyThatChanged)
 {
-	if (PropertyChangedEvent.ChangeType == EPropertyChangeType::Interactive || !PropertyThatChanged)
+	if (!PropertyThatChanged || !PropertyThatChanged->GetActiveNode())
 	{
 		return;
 	}
 
-	const FName PropertyName = PropertyThatChanged->GetFName();
+	FProperty* ActiveProperty = PropertyThatChanged->GetActiveNode()->GetValue();
+	const FName PropertyName = ActiveProperty->GetFName();
 	const FName MemberPropertyName = PropertyChangedEvent.GetMemberPropertyName();
+
+	if (PropertyChangedEvent.ChangeType == EPropertyChangeType::Interactive)
+	{
+		// we could set the default values on the Material's expressions here, and it would update fairly responsively,
+		// but it's not perfect, and flickering occurs. Instead we modify the MID which has perfect responsiveness, and any
+		// temporary modifications will be correctly replaced once the material is generated.
+
+		// this unfortunately only works if the params are not optimized out, so in that case, update the material expressions directly.
+
+		// for each edited layer (almost always just 1 during interactive edit)
+		for (int32 Idx = 0; Idx < PropertyChangedEvent.GetNumObjectsBeingEdited(); ++Idx)
+		{
+			const UMGFXMaterialLayer* EditedLayer = Cast<UMGFXMaterialLayer>(PropertyChangedEvent.GetObjectBeingEdited(Idx));
+			if (!EditedLayer)
+			{
+				continue;
+			}
+
+			if (MemberPropertyName == GET_MEMBER_NAME_CHECKED(UMGFXMaterialLayer, Transform))
+			{
+				if (TDoubleLinkedList<FProperty*>::TDoubleLinkedListNode* ParentNode = PropertyThatChanged->GetActiveNode()->GetPrevNode())
+				{
+					const FName ParentPropertyName = ParentNode->GetValue()->GetFName();
+					if (PropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Location))
+					{
+						// setting Location
+						const FString ParamPrefix = EditedLayer->Name + ".";
+						PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + "TranslateX"), EditedLayer->Transform.Location.X);
+						PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + "TranslateY"), EditedLayer->Transform.Location.Y);
+					}
+					else if (PropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Rotation))
+					{
+						// setting Rotation
+						const float NewValue = EditedLayer->Transform.Rotation;
+						const FString ParamName = TEXT("Rotation");
+						const FName ParamFullName = FName(EditedLayer->Name + "." + ParamName);
+
+						PreviewMaterial->SetScalarParameterValue(ParamFullName, NewValue);
+					}
+					else if (PropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Scale))
+					{
+						// setting Scale
+						const FString ParamPrefix = EditedLayer->Name + ".";
+						PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + "ScaleX"), EditedLayer->Transform.Scale.X);
+						PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + "ScaleY"), EditedLayer->Transform.Scale.Y);
+					}
+					else if (ParentPropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Location))
+					{
+						// setting X or Y of Location
+						const FString ParamPrefix = EditedLayer->Name + ".";
+
+						const bool bIsX = PropertyName == GET_MEMBER_NAME_CHECKED(FVector2f, X);
+						const float NewValue = bIsX ? EditedLayer->Transform.Location.X : EditedLayer->Transform.Location.Y;
+						const FString ParamName = bIsX ? TEXT("TranslateX") : TEXT("TranslateY");
+
+						PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + ParamName), NewValue);
+					}
+					else if (ParentPropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Scale))
+					{
+						// setting X or Y of Scale
+						const FString ParamPrefix = EditedLayer->Name + ".";
+
+						const bool bIsX = PropertyName == GET_MEMBER_NAME_CHECKED(FVector2f, X);
+						const float NewValue = bIsX ? EditedLayer->Transform.Scale.X : EditedLayer->Transform.Scale.Y;
+						const FString ParamName = bIsX ? TEXT("ScaleX") : TEXT("ScaleY");
+
+						PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + ParamName), NewValue);
+					}
+				}
+			}
+		}
+		return;
+	}
 
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(UMGFXMaterial, Material))
 	{
-		OnMaterialChangedEvent.Broadcast(MGFXMaterial->Material);
+		OnMaterialAssetChanged();
 		return;
 	}
 	else if (MemberPropertyName == GET_MEMBER_NAME_CHECKED(UMGFXMaterial, DesignerBackground) ||
@@ -381,6 +465,7 @@ void FMGFXMaterialEditor::NotifyPostChange(const FPropertyChangedEvent& Property
 		return;
 	}
 
+	// TODO: expose option for auto-regenerate on value change
 	// TODO: filter properties that cause regenerate
 	RegenerateMaterial();
 }
@@ -509,6 +594,23 @@ TSharedRef<SDockTab> FMGFXMaterialEditor::SpawnTab_Details(const FSpawnTabArgs& 
 	[
 		DetailsView.ToSharedRef()
 	];
+}
+
+void FMGFXMaterialEditor::OnMaterialAssetChanged()
+{
+	OnMaterialChangedEvent.Broadcast(MGFXMaterial->Material);
+
+	UpdatePreviewMaterial();
+}
+
+void FMGFXMaterialEditor::UpdatePreviewMaterial()
+{
+	// recreate preview material
+	if (MGFXMaterial->Material)
+	{
+		PreviewMaterial = UMaterialInstanceDynamic::Create(MGFXMaterial->Material, nullptr);
+		OnPreviewMaterialChangedEvent.Broadcast(PreviewMaterial);
+	}
 }
 
 void FMGFXMaterialEditor::Generate_DeleteAllNodes(FMGFXMaterialBuilder& Builder)
@@ -1116,8 +1218,12 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_ShapeFill(FMGFXMaterialBuilde
                                                              UMaterialExpressionNamedRerouteDeclaration* FilterWidthExp,
                                                              const FString& ParamPrefix, const FName& ParamGroup)
 {
-	// add filter width input
-	UMaterialExpressionNamedRerouteUsage* FilterWidthUsageExp = Builder.CreateNamedRerouteUsage(NodePos + FVector2D(0, GridSize * 8), FilterWidthExp);
+	// add reused filter width input
+	UMaterialExpressionNamedRerouteUsage* FilterWidthUsageExp = nullptr;
+	if (!Fill->bComputeFilterWidth)
+	{
+		FilterWidthUsageExp = Builder.CreateNamedRerouteUsage(NodePos + FVector2D(0, GridSize * 8), FilterWidthExp);
+	}
 
 	// optionally enable filter bias
 	UMaterialExpressionStaticBool* EnableBiasExp = nullptr;
@@ -1133,7 +1239,10 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_ShapeFill(FMGFXMaterialBuilde
 	UMaterialExpressionMaterialFunctionCall* FillExp = Builder.CreateFunction(
 		NodePos, TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Fill.MF_MGFX_Fill")));
 	Builder.Connect(ShapeExp, "SDF", FillExp, "SDF");
-	Builder.Connect(FilterWidthUsageExp, "", FillExp, "FilterWidth");
+	if (FilterWidthUsageExp)
+	{
+		Builder.Connect(FilterWidthUsageExp, "", FillExp, "FilterWidth");
+	}
 	if (EnableBiasExp)
 	{
 		Builder.Connect(EnableBiasExp, "", FillExp, "EnableFilterBias");
@@ -1170,8 +1279,12 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_ShapeStroke(FMGFXMaterialBuil
 		NodePos + FVector2D(0, GridSize * 8), FName(ParamPrefix + "StrokeWidth"), ParamGroup, 40);
 	SET_PROP(StrokeWidthExp, DefaultValue, Stroke->StrokeWidth);
 
-	// add filter width input
-	UMaterialExpressionNamedRerouteUsage* FilterWidthUsageExp = Builder.CreateNamedRerouteUsage(NodePos + FVector2D(0, GridSize * 14), FilterWidthExp);
+	// add reused filter width input
+	UMaterialExpressionNamedRerouteUsage* FilterWidthUsageExp = nullptr;
+	if (!Stroke->bComputeFilterWidth)
+	{
+		FilterWidthUsageExp = Builder.CreateNamedRerouteUsage(NodePos + FVector2D(0, GridSize * 14), FilterWidthExp);
+	}
 
 	NodePos.X += GridSize * 15;
 
@@ -1180,7 +1293,10 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_ShapeStroke(FMGFXMaterialBuil
 		NodePos, TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Stroke.MF_MGFX_Stroke")));
 	Builder.Connect(ShapeExp, "SDF", StrokeExp, "SDF");
 	Builder.Connect(StrokeWidthExp, "", StrokeExp, "StrokeWidth");
-	Builder.Connect(FilterWidthUsageExp, "", StrokeExp, "FilterWidth");
+	if (FilterWidthUsageExp)
+	{
+		Builder.Connect(FilterWidthUsageExp, "", StrokeExp, "FilterWidth");
+	}
 
 	NodePos.X += GridSize * 15;
 
