@@ -7,10 +7,11 @@
 #include "UObject/Object.h"
 #include "MGFXMaterialShape.generated.h"
 
-class UMaterialFunctionInterface;
 class UMGFXMaterialShapeVisual;
+class UMaterialFunctionInterface;
 
 
+UENUM(BlueprintType)
 enum class EMGFXMaterialShapeInputType : uint8
 {
 	// a float value
@@ -23,13 +24,21 @@ enum class EMGFXMaterialShapeInputType : uint8
 	Vector4,
 };
 
+
+USTRUCT(BlueprintType)
 struct FMGFXMaterialShapeInput
 {
-	const FString Name = FString();
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FString Name = FString();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	EMGFXMaterialShapeInputType Type = EMGFXMaterialShapeInputType::Float;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FLinearColor Value = FLinearColor(0.f, 0.f, 0.f, 0.f);
 
-public:
 	/** Create a new float input. */
 	static FMGFXMaterialShapeInput Float(const FString& InName, float InValue);
 
@@ -47,7 +56,7 @@ public:
 /**
  * Base class for shapes that can be used in a UMGFXMaterial.
  */
-UCLASS(Abstract, BlueprintType, EditInlineNew, DefaultToInstanced)
+UCLASS(Abstract, BlueprintType, Blueprintable, EditInlineNew, DefaultToInstanced)
 class MGFX_API UMGFXMaterialShape : public UObject
 {
 	GENERATED_BODY()
@@ -61,7 +70,7 @@ public:
 	TArray<TObjectPtr<UMGFXMaterialShapeVisual>> Visuals;
 
 	/** Return the user-facing name of this shape type. */
-	virtual FString GetShapeName() const PURE_VIRTUAL(, return FString(););
+	virtual FString GetShapeName() const { return ShapeName; }
 
 	// TODO: move to SMGFXMaterialShape widgets defined for each shape...
 	/** Return true if the shape has finite bounds. */
@@ -77,8 +86,20 @@ public:
 	/** Return an array of all the inputs to use. */
 	virtual TArray<FMGFXMaterialShapeInput> GetInputs() const;
 
+	UFUNCTION(BlueprintNativeEvent, DisplayName = "GetInputs")
+	TArray<FMGFXMaterialShapeInput> GetInputs_BP() const;
+
 protected:
+	/** The name of this shape. */
+	UPROPERTY(EditDefaultsOnly, Category = "Shape|Editor")
+	FString ShapeName;
+
 	/** The material function of this shape. */
+	UPROPERTY(EditDefaultsOnly, Category = "Shape|Editor")
 	TSoftObjectPtr<UMaterialFunctionInterface> MaterialFunction;
+#endif
+
+#if WITH_EDITOR
+	virtual EDataValidationResult IsDataValid(FDataValidationContext& Context) const override;
 #endif
 };

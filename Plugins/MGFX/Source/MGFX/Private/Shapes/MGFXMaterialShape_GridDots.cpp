@@ -9,6 +9,7 @@
 UMGFXMaterialShape_GridDots::UMGFXMaterialShape_GridDots()
 {
 #if WITH_EDITORONLY_DATA
+	ShapeName = TEXT("GridDots");
 	MaterialFunction = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Shape_GridDots.MF_MGFX_Shape_GridDots"));
 #endif
 

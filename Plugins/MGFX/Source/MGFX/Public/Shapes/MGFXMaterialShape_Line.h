@@ -24,8 +24,6 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Line")
 	FVector2f PointB = FVector2f(100.f, 0.f);
 
-	virtual FString GetShapeName() const override { return "Line"; }
-
 	virtual bool HasBounds() const override { return true; }
 	virtual FBox2D GetBounds() const override;
 

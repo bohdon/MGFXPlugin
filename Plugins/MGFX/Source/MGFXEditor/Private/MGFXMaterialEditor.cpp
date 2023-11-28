@@ -318,7 +318,9 @@ void FMGFXMaterialEditor::OnLayerSelectionChanged(TArray<TObjectPtr<UMGFXMateria
 
 bool FMGFXMaterialEditor::IsDetailsPropertyVisible(const FPropertyAndParent& PropertyAndParent)
 {
-	const TArray<FName> CategoriesToHide = {};
+	const TArray<FName> CategoriesToHide = {
+		FName("Shape|Editor")
+	};
 
 	const FProperty* Property = PropertyAndParent.ParentProperties.Num() > 0 ? PropertyAndParent.ParentProperties.Last() : &PropertyAndParent.Property;
 
@@ -348,7 +350,9 @@ bool FMGFXMaterialEditor::IsDetailsPropertyVisible(const FPropertyAndParent& Pro
 
 bool FMGFXMaterialEditor::IsDetailsRowVisible(FName InRowName, FName InParentName)
 {
-	const TArray<FName> CategoriesToHide = {};
+	const TArray<FName> CategoriesToHide = {
+		FName("Shape|Editor")
+	};
 
 	if (CategoriesToHide.Contains(InParentName))
 	{
@@ -1195,8 +1199,11 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_Shape(FMGFXMaterialBuilder& B
 	// create shape function
 	UMaterialExpressionMaterialFunctionCall* ShapeExp = Builder.Create<UMaterialExpressionMaterialFunctionCall>(NodePos);
 	UMaterialFunctionInterface* ShapeFunc = Shape->GetMaterialFunction();
-	check(ShapeFunc);
-	SET_PROP(ShapeExp, MaterialFunction, ShapeFunc);
+	if (ensure(ShapeFunc))
+	{
+		SET_PROP(ShapeExp, MaterialFunction, ShapeFunc);
+	}
+
 	// connect uvs
 	if (InUVsExp)
 	{

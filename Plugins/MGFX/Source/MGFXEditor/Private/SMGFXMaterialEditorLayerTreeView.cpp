@@ -4,6 +4,8 @@
 #include "SMGFXMaterialEditorLayerTreeView.h"
 
 #include "MGFXEditorStyle.h"
+#include "MGFXMaterial.h"
+#include "MGFXMaterialEditor.h"
 #include "MGFXMaterialLayer.h"
 #include "SlateOptMacros.h"
 #include "SMGFXMaterialEditorLayers.h"
@@ -222,6 +224,18 @@ bool SMGFXMaterialLayerRow::OnVerifyNameTextChanged(const FText& InText, FText& 
 	if (InText.IsEmpty())
 	{
 		OutErrorMessage = LOCTEXT("LayerNameEmpty", "Layer names cannot be empty");
+		return false;
+	}
+
+	const FString NewName = InText.ToString().TrimStartAndEnd();
+	if (NewName == Item->Name)
+	{
+		return true;
+	}
+
+	if (!NewName.Equals(FMGFXMaterialEditor::MakeUniqueLayerName(NewName, Item->GetTypedOuter<UMGFXMaterial>())))
+	{
+		OutErrorMessage = LOCTEXT("LayerNameNotUnique", "Layer names must be unique");
 		return false;
 	}
 

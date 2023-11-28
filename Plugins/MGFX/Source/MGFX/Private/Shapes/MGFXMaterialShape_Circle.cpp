@@ -9,6 +9,7 @@
 UMGFXMaterialShape_Circle::UMGFXMaterialShape_Circle()
 {
 #if WITH_EDITORONLY_DATA
+	ShapeName = TEXT("Circle");
 	MaterialFunction = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Shape_Circle.MF_MGFX_Shape_Circle"));
 #endif
 

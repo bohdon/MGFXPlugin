@@ -22,7 +22,8 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Cross")
 	float Size = 100.f;
 
-	virtual FString GetShapeName() const override { return TEXT("Cross"); }
+	virtual bool HasBounds() const override { return true; }
+	virtual FBox2D GetBounds() const override;
 
 #if WITH_EDITORONLY_DATA
 	virtual TArray<FMGFXMaterialShapeInput> GetInputs() const override;

@@ -9,6 +9,7 @@
 UMGFXMaterialShape_Line::UMGFXMaterialShape_Line()
 {
 #if WITH_EDITORONLY_DATA
+	ShapeName = TEXT("Line");
 	MaterialFunction = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Shape_Line.MF_MGFX_Shape_Line"));
 #endif
 

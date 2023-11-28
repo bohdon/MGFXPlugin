@@ -3,6 +3,11 @@
 
 #include "Shapes/MGFXMaterialShape.h"
 
+#include "Misc/DataValidation.h"
+
+
+#define LOCTEXT_NAMESPACE "MGFX"
+
 
 FMGFXMaterialShapeInput FMGFXMaterialShapeInput::Float(const FString& InName, float InValue)
 {
@@ -32,12 +37,40 @@ FBox2D UMGFXMaterialShape::GetBounds() const
 #if WITH_EDITORONLY_DATA
 UMaterialFunctionInterface* UMGFXMaterialShape::GetMaterialFunction() const
 {
-	check(!MaterialFunction.IsNull());
-	return MaterialFunction.LoadSynchronous();
+	return !MaterialFunction.IsNull() ? MaterialFunction.LoadSynchronous() : nullptr;
+}
+
+TArray<FMGFXMaterialShapeInput> UMGFXMaterialShape::GetInputs_BP_Implementation() const
+{
+	// TODO: automatically retrieve using material function inputs and matching blueprint property names
+	return TArray<FMGFXMaterialShapeInput>();
 }
 
 TArray<FMGFXMaterialShapeInput> UMGFXMaterialShape::GetInputs() const
 {
-	return TArray<FMGFXMaterialShapeInput>();
+	return GetInputs_BP();
 }
 #endif
+
+#if WITH_EDITOR
+EDataValidationResult UMGFXMaterialShape::IsDataValid(FDataValidationContext& Context) const
+{
+	EDataValidationResult Result = Super::IsDataValid(Context);
+
+	if (MaterialFunction.IsNull())
+	{
+		Context.AddError(LOCTEXT("MaterialFunctionNull", "MaterialFunction must be set"));
+		Result = EDataValidationResult::Invalid;
+	}
+
+	if (ShapeName.IsEmpty())
+	{
+		Context.AddError(LOCTEXT("ShapeNameEmpty", "ShapeName must be set"));
+		Result = EDataValidationResult::Invalid;
+	}
+
+	return CombineDataValidationResults(Result, EDataValidationResult::Valid);
+}
+#endif
+
+#undef LOCTEXT_NAMESPACE

@@ -9,6 +9,7 @@
 UMGFXMaterialShape_Triangle::UMGFXMaterialShape_Triangle()
 {
 #if WITH_EDITORONLY_DATA
+	ShapeName = TEXT("Triangle");
 	MaterialFunction = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Shape_Triangle.MF_MGFX_Shape_Triangle"));
 #endif
 

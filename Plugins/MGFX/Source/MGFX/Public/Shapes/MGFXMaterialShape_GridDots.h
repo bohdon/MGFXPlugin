@@ -26,8 +26,6 @@ public:
 	UPROPERTY(EditAnywhere, Category = "GridDots")
 	float Size = 2.f;
 
-	virtual FString GetShapeName() const override { return TEXT("GridDots"); }
-
 #if WITH_EDITORONLY_DATA
 	virtual TArray<FMGFXMaterialShapeInput> GetInputs() const override;
 #endif
