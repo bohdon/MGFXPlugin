@@ -392,61 +392,72 @@ void FMGFXMaterialEditor::NotifyPostChange(const FPropertyChangedEvent& Property
 		// for each edited layer (almost always just 1 during interactive edit)
 		for (int32 Idx = 0; Idx < PropertyChangedEvent.GetNumObjectsBeingEdited(); ++Idx)
 		{
-			const UMGFXMaterialLayer* EditedLayer = Cast<UMGFXMaterialLayer>(PropertyChangedEvent.GetObjectBeingEdited(Idx));
-			if (!EditedLayer)
+			const UObject* EditedObject = PropertyChangedEvent.GetObjectBeingEdited(Idx);
+			if (const UMGFXMaterialLayer* EditedLayer = Cast<UMGFXMaterialLayer>(EditedObject))
 			{
-				continue;
-			}
-
-			if (MemberPropertyName == GET_MEMBER_NAME_CHECKED(UMGFXMaterialLayer, Transform))
-			{
-				if (TDoubleLinkedList<FProperty*>::TDoubleLinkedListNode* ParentNode = PropertyThatChanged->GetActiveNode()->GetPrevNode())
+				// editing a layer
+				if (MemberPropertyName == GET_MEMBER_NAME_CHECKED(UMGFXMaterialLayer, Transform))
 				{
-					const FName ParentPropertyName = ParentNode->GetValue()->GetFName();
-					if (PropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Location))
+					if (TDoubleLinkedList<FProperty*>::TDoubleLinkedListNode* ParentNode = PropertyThatChanged->GetActiveNode()->GetPrevNode())
 					{
-						// setting Location
-						const FString ParamPrefix = EditedLayer->Name + ".";
-						PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + "TranslateX"), EditedLayer->Transform.Location.X);
-						PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + "TranslateY"), EditedLayer->Transform.Location.Y);
+						const FName ParentPropertyName = ParentNode->GetValue()->GetFName();
+						if (PropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Location))
+						{
+							// setting Location
+							const FString ParamPrefix = EditedLayer->Name + ".";
+							PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + "TranslateX"), EditedLayer->Transform.Location.X);
+							PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + "TranslateY"), EditedLayer->Transform.Location.Y);
+						}
+						else if (PropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Rotation))
+						{
+							// setting Rotation
+							const float NewValue = EditedLayer->Transform.Rotation;
+							const FString ParamName = TEXT("Rotation");
+							const FName ParamFullName = FName(EditedLayer->Name + "." + ParamName);
+
+							PreviewMaterial->SetScalarParameterValue(ParamFullName, NewValue);
+						}
+						else if (PropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Scale))
+						{
+							// setting Scale
+							const FString ParamPrefix = EditedLayer->Name + ".";
+							PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + "ScaleX"), EditedLayer->Transform.Scale.X);
+							PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + "ScaleY"), EditedLayer->Transform.Scale.Y);
+						}
+						else if (ParentPropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Location))
+						{
+							// setting X or Y of Location
+							const FString ParamPrefix = EditedLayer->Name + ".";
+
+							const bool bIsX = PropertyName == GET_MEMBER_NAME_CHECKED(FVector2f, X);
+							const float NewValue = bIsX ? EditedLayer->Transform.Location.X : EditedLayer->Transform.Location.Y;
+							const FString ParamName = bIsX ? TEXT("TranslateX") : TEXT("TranslateY");
+
+							PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + ParamName), NewValue);
+						}
+						else if (ParentPropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Scale))
+						{
+							// setting X or Y of Scale
+							const FString ParamPrefix = EditedLayer->Name + ".";
+
+							const bool bIsX = PropertyName == GET_MEMBER_NAME_CHECKED(FVector2f, X);
+							const float NewValue = bIsX ? EditedLayer->Transform.Scale.X : EditedLayer->Transform.Scale.Y;
+							const FString ParamName = bIsX ? TEXT("ScaleX") : TEXT("ScaleY");
+
+							PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + ParamName), NewValue);
+						}
 					}
-					else if (PropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Rotation))
+				}
+			}
+			else if (const UMGFXMaterialShapeStroke* EditedStroke = Cast<UMGFXMaterialShapeStroke>(EditedObject))
+			{
+				if (PropertyName == GET_MEMBER_NAME_CHECKED(UMGFXMaterialShapeStroke, StrokeWidth))
+				{
+					if (const UMGFXMaterialLayer* OwningLayer = Cast<UMGFXMaterialLayer>(EditedStroke->GetOuter()->GetOuter()))
 					{
-						// setting Rotation
-						const float NewValue = EditedLayer->Transform.Rotation;
-						const FString ParamName = TEXT("Rotation");
-						const FName ParamFullName = FName(EditedLayer->Name + "." + ParamName);
+						const FString ParamPrefix = OwningLayer->Name + ".";
 
-						PreviewMaterial->SetScalarParameterValue(ParamFullName, NewValue);
-					}
-					else if (PropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Scale))
-					{
-						// setting Scale
-						const FString ParamPrefix = EditedLayer->Name + ".";
-						PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + "ScaleX"), EditedLayer->Transform.Scale.X);
-						PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + "ScaleY"), EditedLayer->Transform.Scale.Y);
-					}
-					else if (ParentPropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Location))
-					{
-						// setting X or Y of Location
-						const FString ParamPrefix = EditedLayer->Name + ".";
-
-						const bool bIsX = PropertyName == GET_MEMBER_NAME_CHECKED(FVector2f, X);
-						const float NewValue = bIsX ? EditedLayer->Transform.Location.X : EditedLayer->Transform.Location.Y;
-						const FString ParamName = bIsX ? TEXT("TranslateX") : TEXT("TranslateY");
-
-						PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + ParamName), NewValue);
-					}
-					else if (ParentPropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Scale))
-					{
-						// setting X or Y of Scale
-						const FString ParamPrefix = EditedLayer->Name + ".";
-
-						const bool bIsX = PropertyName == GET_MEMBER_NAME_CHECKED(FVector2f, X);
-						const float NewValue = bIsX ? EditedLayer->Transform.Scale.X : EditedLayer->Transform.Scale.Y;
-						const FString ParamName = bIsX ? TEXT("ScaleX") : TEXT("ScaleY");
-
-						PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + ParamName), NewValue);
+						PreviewMaterial->SetScalarParameterValue(FName(ParamPrefix + "StrokeWidth"), EditedStroke->StrokeWidth);
 					}
 				}
 			}
