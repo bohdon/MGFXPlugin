@@ -80,6 +80,12 @@ struct MGFXEDITOR_API FMGFXMaterialBuilder
 		return Cast<T>(FindNamedParameter(ParameterName));
 	}
 
+	/** Set the value of an existing scalar parameter expression by name. */
+	void SetScalarParameterValue(FName ParameterName, float Value);
+
+	/** Set the value of an existing vector parameter expression by name. */
+	void SetVectorParameterValue(FName ParameterName, FLinearColor Value);
+
 	/** Connect two expressions using explicit pin names. */
 	bool Connect(UMaterialExpression* From, const FString& FromPin, UMaterialExpression* To, const FString& ToPin) const;
 

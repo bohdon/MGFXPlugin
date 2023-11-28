@@ -41,9 +41,9 @@ enum class EMGFXShapeTransformHandle : uint8
 class MGFXEDITOR_API SMGFXShapeTransformHandle : public SCompoundWidget
 {
 public:
-	DECLARE_DELEGATE_OneParam(FSetLocationDelegate, FVector2D /*NewLocation*/);
-	DECLARE_DELEGATE_OneParam(FSetRotationDelegate, float /*NewRotation*/);
-	DECLARE_DELEGATE_OneParam(FSetScaleDelegate, FVector2D /*NewScale*/);
+	DECLARE_DELEGATE_TwoParams(FSetLocationDelegate, FVector2D /*NewLocation*/, bool /*bIsFinished*/);
+	DECLARE_DELEGATE_TwoParams(FSetRotationDelegate, float /*NewRotation*/, bool /*bIsFinished*/);
+	DECLARE_DELEGATE_TwoParams(FSetScaleDelegate, FVector2D /*NewScale*/, bool /*bIsFinished*/);
 	DECLARE_DELEGATE(FDragStartedDelegate);
 	DECLARE_DELEGATE_OneParam(FDragFinishedDelegate, bool /*bWasModified*/);
 

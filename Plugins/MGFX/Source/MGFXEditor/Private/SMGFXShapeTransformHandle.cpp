@@ -245,7 +245,7 @@ FReply SMGFXShapeTransformHandle::PerformMouseMoveTranslate(const FGeometry& MyG
 	bWasModified = !(OriginalLocation - NewLocation).IsNearlyZero();
 
 	// ...but always send the interactive change event
-	OnSetLocationEvent.ExecuteIfBound(NewLocation);
+	OnSetLocationEvent.ExecuteIfBound(NewLocation, false);
 
 	return FReply::Handled();
 }
@@ -270,7 +270,7 @@ FReply SMGFXShapeTransformHandle::PerformMouseMoveRotate(const FGeometry& MyGeom
 	bWasModified = !FMath::IsNearlyEqual(NewRotation, OriginalRotation);
 
 	// ...but always send the interactive change event
-	OnSetRotationEvent.ExecuteIfBound(NewRotation);
+	OnSetRotationEvent.ExecuteIfBound(NewRotation, false);
 
 	return FReply::Handled();
 }
@@ -358,7 +358,7 @@ FReply SMGFXShapeTransformHandle::PerformMouseMoveScale(const FGeometry& MyGeome
 	bWasModified = !(OriginalScale - NewScale).IsNearlyZero();
 
 	// ...but always send the interactive change event
-	OnSetScaleEvent.ExecuteIfBound(NewScale);
+	OnSetScaleEvent.ExecuteIfBound(NewScale, false);
 
 	return FReply::Handled();
 }
@@ -801,6 +801,23 @@ FReply SMGFXShapeTransformHandle::StartDragging(EMGFXShapeTransformHandle Handle
 
 FReply SMGFXShapeTransformHandle::FinishDragging()
 {
+	// broadcast setter events with bIsFinished set to true
+	switch (Mode.Get())
+	{
+	default: ;
+	case EMGFXShapeTransformMode::Select:
+		break;
+	case EMGFXShapeTransformMode::Translate:
+		OnSetLocationEvent.ExecuteIfBound(Location.Get(), true);
+		break;
+	case EMGFXShapeTransformMode::Rotate:
+		OnSetRotationEvent.ExecuteIfBound(Rotation.Get(), true);
+		break;
+	case EMGFXShapeTransformMode::Scale:
+		OnSetScaleEvent.ExecuteIfBound(Scale.Get(), true);
+		break;
+	}
+
 	OnDragFinishedEvent.ExecuteIfBound(bWasModified);
 
 	// complete the undo transaction

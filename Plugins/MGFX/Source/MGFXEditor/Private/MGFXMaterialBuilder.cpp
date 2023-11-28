@@ -12,6 +12,7 @@
 #include "Materials/MaterialExpressionNamedReroute.h"
 #include "Materials/MaterialExpressionParameter.h"
 #include "Materials/MaterialExpressionScalarParameter.h"
+#include "Materials/MaterialExpressionVectorParameter.h"
 #include "UObject/PropertyAccessUtil.h"
 
 
@@ -157,6 +158,22 @@ UMaterialExpressionMaterialFunctionCall* FMGFXMaterialBuilder::CreateFunction(co
 {
 	check(!FunctionPtr.IsNull());
 	return CreateFunction(NodePos, FunctionPtr.LoadSynchronous());
+}
+
+void FMGFXMaterialBuilder::SetScalarParameterValue(FName ParameterName, float Value)
+{
+	if (UMaterialExpressionScalarParameter* ParamExp = FindNamedParameter<UMaterialExpressionScalarParameter>(ParameterName))
+	{
+		SET_PROP(ParamExp, DefaultValue, Value);
+	}
+}
+
+void FMGFXMaterialBuilder::SetVectorParameterValue(FName ParameterName, FLinearColor Value)
+{
+	if (UMaterialExpressionVectorParameter* ParamExp = FindNamedParameter<UMaterialExpressionVectorParameter>(ParameterName))
+	{
+		SET_PROP(ParamExp, DefaultValue, Value);
+	}
 }
 
 bool FMGFXMaterialBuilder::Connect(UMaterialExpression* From, const FString& FromPin, UMaterialExpression* To, const FString& ToPin) const

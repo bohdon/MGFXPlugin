@@ -116,16 +116,13 @@ protected:
 	FVector2D GetTransformHandleScale() const;
 
 	/** Called by transform handles to move the currently selected layer. */
-	void OnSetLayerLocation(FVector2D NewLocation);
+	void OnSetLayerLocation(FVector2D NewLocation, bool bIsFinished);
 
 	/** Called by transform handles to rotate the currently selected layer. */
-	void OnSetLayerRotation(float NewRotation);
+	void OnSetLayerRotation(float NewRotation, bool bIsFinished);
 
 	/** Called by transform handles to scale the currently selected layer. */
-	void OnSetLayerScale(FVector2D NewScale);
-
-	/** Called when a transform handle is finished moving a layer. */
-	void OnLayerMoveFinished(bool bWasModified);
+	void OnSetLayerScale(FVector2D NewScale, bool bIsFinished);
 
 	void SendLayerTransformPropertyChangeEvent(UMGFXMaterialLayer* Layer, EPropertyChangeType::Type ChangeType, FProperty* Property);
 

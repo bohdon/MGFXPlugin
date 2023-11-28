@@ -26,6 +26,9 @@ public:
 	/** Clear and rebuild the generated material. */
 	TSharedPtr<FUICommandInfo> RegenerateMaterial;
 
+	/** Toggles enabling auto-regenerate of material after every edit. */
+	TSharedPtr<FUICommandInfo> ToggleAutoRegenerate;
+
 	/** Set the canvas view scale to 50% */
 	TSharedPtr<FUICommandInfo> ZoomTo50;
 

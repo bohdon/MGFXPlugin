@@ -84,6 +84,10 @@ public:
 	/** Fully regenerate the target material. */
 	void RegenerateMaterial();
 
+	void ToggleAutoRegenerate();
+
+	bool IsAutoRegenerateEnabled() const { return bAutoRegenerate; }
+
 	/** Create a new material asset for the MGFX material. */
 	UMaterial* CreateMaterialAsset();
 
@@ -115,7 +119,11 @@ public:
 	virtual void NotifyPreChange(FProperty* PropertyAboutToChange) override;
 	virtual void NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FEditPropertyChain* PropertyThatChanged) override;
 
-	void NotifyPostChangeInteractive(const FPropertyChangedEvent& PropertyChangedEvent, FEditPropertyChain* PropertyThatChanged);
+	/** Set a scalar parameter value, either on the preview material if interactive, or directly on the generated material expressions. */
+	void SetMaterialScalarParameterValue(FName PropertyName, float Value, bool bInteractive) const;
+
+	/** Set a vector parameter value, either on the preview material if interactive, or directly on the generated material expressions. */
+	void SetMaterialVectorParameterValue(FName PropertyName, FLinearColor Value, bool bInteractive) const;
 
 	// FEditorUndoClient
 	virtual bool MatchesContext(const FTransactionContext& InContext,
@@ -166,8 +174,11 @@ private:
 	/** Reroute color to use for RGBA channels. */
 	FLinearColor RGBARerouteColor;
 
+	/** Automatically regenerate the material after every edit. */
+	bool bAutoRegenerate;
+
 	void BindCommands();
-	void ExtendToolbar();
+	void RegisterToolbar();
 
 	TSharedRef<SDockTab> SpawnTab_Canvas(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_Layers(const FSpawnTabArgs& Args);

@@ -13,6 +13,7 @@ public class MGFXEditor : ModuleRules
 			"InputCore",
 			"MGFX",
 			"MaterialEditor",
+			"ToolMenus",
 			"UnrealEd",
 		});
 
