@@ -9,6 +9,7 @@ class FMGFXMaterialEditor;
 class SMGFXMaterialEditorLayerTreeView;
 class UMGFXMaterial;
 class UMGFXMaterialLayer;
+class UMGFXMaterialShape;
 
 
 /**
@@ -39,10 +40,10 @@ public:
 	/** Weak pointer to the owning material editor. */
 	TWeakPtr<FMGFXMaterialEditor> MGFXMaterialEditor;
 
-	/** Add a new layer above the selected layers. */
-	void AddNewLayerAboveSelection();
+	UMGFXMaterialLayer* CreateNewLayer();
 
-	void AddNewLayer(UMGFXMaterialLayer* Parent, int32 Index = 0);
+	/** Add a new layer above the selected layers. */
+	void AddLayerAboveSelection(UMGFXMaterialLayer* NewLayer);
 
 	void AddLayer(UMGFXMaterialLayer* NewLayer, UMGFXMaterialLayer* Parent, int32 Index);
 
@@ -88,5 +89,5 @@ protected:
 	/** Called when the selection has changed and the tree view should update to match. */
 	void OnEditorLayerSelectionChanged(const TArray<TObjectPtr<UMGFXMaterialLayer>>& SelectedLayers);
 
-	FReply OnNewLayerButtonClicked();
+	FReply OnNewLayerButtonClicked(TSubclassOf<UMGFXMaterialShape> ShapeClass = nullptr);
 };

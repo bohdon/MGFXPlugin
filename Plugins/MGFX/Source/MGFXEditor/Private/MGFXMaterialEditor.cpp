@@ -1500,6 +1500,11 @@ bool FMGFXMaterialEditor::CanDuplicateSelectedLayers()
 
 FString FMGFXMaterialEditor::MakeUniqueLayerName(const FString& Name, const UMGFXMaterial* InMaterial)
 {
+	if (!InMaterial)
+	{
+		return Name;
+	}
+
 	TArray<TObjectPtr<UMGFXMaterialLayer>> AllLayers;
 	InMaterial->GetAllLayers(AllLayers);
 

@@ -9,6 +9,10 @@
 #include "SlateOptMacros.h"
 #include "SMGFXMaterialEditorLayerTreeView.h"
 #include "Framework/Commands/GenericCommands.h"
+#include "Shapes/MGFXMaterialShape.h"
+#include "Shapes/MGFXMaterialShape_Circle.h"
+#include "Shapes/MGFXMaterialShape_Rect.h"
+#include "Shapes/MGFXMaterialShape_Triangle.h"
 
 #define LOCTEXT_NAMESPACE "MGFXMaterialEditor"
 
@@ -38,6 +42,11 @@ void SMGFXMaterialEditorLayers::Construct(const FArguments& InArgs)
 		FExecuteAction::CreateSP(this, &SMGFXMaterialEditorLayers::BeginRename),
 		FCanExecuteAction::CreateSP(this, &SMGFXMaterialEditorLayers::CanRename));
 
+	// TODO: dynamically build palette
+	const TSubclassOf<UMGFXMaterialShape> CircleShapeClass(UMGFXMaterialShape_Circle::StaticClass());
+	const TSubclassOf<UMGFXMaterialShape> RectShapeClass(UMGFXMaterialShape_Rect::StaticClass());
+	const TSubclassOf<UMGFXMaterialShape> TriangleShapeClass(UMGFXMaterialShape_Triangle::StaticClass());
+
 	ChildSlot
 	[
 		SNew(SVerticalBox)
@@ -52,7 +61,43 @@ void SMGFXMaterialEditorLayers::Construct(const FArguments& InArgs)
 			.Padding(6.f)
 			[
 				SNew(SButton)
-				.OnClicked(this, &SMGFXMaterialEditorLayers::OnNewLayerButtonClicked)
+				.OnClicked(this, &SMGFXMaterialEditorLayers::OnNewLayerButtonClicked, CircleShapeClass)
+				.Content()
+				[
+					SNew(STextBlock)
+					.Text(INVTEXT("Circle"))
+				]
+			]
+
+			+ SHorizontalBox::Slot()
+			.Padding(6.f)
+			[
+				SNew(SButton)
+				.OnClicked(this, &SMGFXMaterialEditorLayers::OnNewLayerButtonClicked, RectShapeClass)
+				.Content()
+				[
+					SNew(STextBlock)
+					.Text(INVTEXT("Rect"))
+				]
+			]
+
+			+ SHorizontalBox::Slot()
+			.Padding(6.f)
+			[
+				SNew(SButton)
+					.OnClicked(this, &SMGFXMaterialEditorLayers::OnNewLayerButtonClicked, TriangleShapeClass)
+					.Content()
+				[
+					SNew(STextBlock)
+					.Text(INVTEXT("Triangle"))
+				]
+			]
+
+			+ SHorizontalBox::Slot()
+			.Padding(6.f)
+			[
+				SNew(SButton)
+				.OnClicked(this, &SMGFXMaterialEditorLayers::OnNewLayerButtonClicked, TSubclassOf<UMGFXMaterialShape>())
 				.Content()
 				[
 					SNew(STextBlock)
@@ -81,45 +126,43 @@ void SMGFXMaterialEditorLayers::Construct(const FArguments& InArgs)
 	}
 }
 
-void SMGFXMaterialEditorLayers::AddNewLayerAboveSelection()
-{
-	TArray<UMGFXMaterialLayer*> SelectedLayers = MGFXMaterialEditor.Pin()->GetSelectedLayers();
-	if (!SelectedLayers.IsEmpty())
-	{
-		for (const UMGFXMaterialLayer* Layer : SelectedLayers)
-		{
-			// even if there's no parent, we can add as a root layer
-			UMGFXMaterialLayer* ParentLayer = Layer->GetParentLayer();
 
-			UObject* ParentObject = ParentLayer ? Cast<UObject>(ParentLayer) : MGFXMaterial.Get();
-			const IMGFXMaterialLayerParentInterface* Container = CastChecked<IMGFXMaterialLayerParentInterface>(ParentObject);
-			const int32 LayerIndex = Container->GetLayerIndex(Layer);
-
-			// add layers at the same index, i.e. right on top
-			AddNewLayer(ParentLayer, LayerIndex);
-		}
-	}
-	else
-	{
-		// add as root layer
-		AddNewLayer(nullptr, 0);
-	}
-}
-
-void SMGFXMaterialEditorLayers::AddNewLayer(UMGFXMaterialLayer* Parent, int32 Index)
+UMGFXMaterialLayer* SMGFXMaterialEditorLayers::CreateNewLayer()
 {
 	// create layer
 	UMGFXMaterialLayer* NewLayer = NewObject<UMGFXMaterialLayer>(MGFXMaterial.Get(), NAME_None, RF_Public | RF_Transactional);
 	NewLayer->Name = FMGFXMaterialEditor::MakeUniqueLayerName(NewLayer->Name, MGFXMaterial.Get());
+	return NewLayer;
+}
 
-	// then add it to the given parent
-	AddLayer(NewLayer, Parent, Index);
+void SMGFXMaterialEditorLayers::AddLayerAboveSelection(UMGFXMaterialLayer* NewLayer)
+{
+	TArray<UMGFXMaterialLayer*> SelectedLayers = MGFXMaterialEditor.Pin()->GetSelectedLayers();
+	if (SelectedLayers.IsValidIndex(0))
+	{
+		const UMGFXMaterialLayer* SelectedLayer = SelectedLayers[0];
 
-	TreeView->SetSelection(NewLayer);
+		// even if there's no parent, we can add as a root layer
+		UMGFXMaterialLayer* ParentLayer = SelectedLayer->GetParentLayer();
+
+		UObject* ParentObject = ParentLayer ? Cast<UObject>(ParentLayer) : MGFXMaterial.Get();
+		const IMGFXMaterialLayerParentInterface* Container = CastChecked<IMGFXMaterialLayerParentInterface>(ParentObject);
+		const int32 LayerIndex = Container->GetLayerIndex(SelectedLayer);
+
+		// add layers at the same index, i.e. right on top
+		AddLayer(NewLayer, ParentLayer, LayerIndex);
+	}
+	else
+	{
+		// add as root layer
+		AddLayer(NewLayer, nullptr, 0);
+	}
 }
 
 void SMGFXMaterialEditorLayers::AddLayer(UMGFXMaterialLayer* NewLayer, UMGFXMaterialLayer* Parent, int32 Index)
 {
+	FScopedTransaction Transaction(LOCTEXT("AddLayer", "Add Layer"));
+
 	UObject* ParentObject = Parent ? Cast<UObject>(Parent) : MGFXMaterial.Get();
 	IMGFXMaterialLayerParentInterface* Container = CastChecked<IMGFXMaterialLayerParentInterface>(ParentObject);
 	ParentObject->Modify();
@@ -137,6 +180,8 @@ void SMGFXMaterialEditorLayers::AddLayer(UMGFXMaterialLayer* NewLayer, UMGFXMate
 
 void SMGFXMaterialEditorLayers::ReparentLayer(UMGFXMaterialLayer* Layer, UMGFXMaterialLayer* NewParent, int32 Index)
 {
+	FScopedTransaction Transaction(LOCTEXT("ReparentLayer", "Reparent Layer"));
+
 	UObject* ParentObject = NewParent ? Cast<UObject>(NewParent) : MGFXMaterial.Get();
 	IMGFXMaterialLayerParentInterface* Container = CastChecked<IMGFXMaterialLayerParentInterface>(ParentObject);
 	ParentObject->Modify();
@@ -158,6 +203,8 @@ void SMGFXMaterialEditorLayers::ReparentLayer(UMGFXMaterialLayer* Layer, UMGFXMa
 	}
 
 	TreeView->RequestTreeRefresh();
+
+	OnLayersChangedEvent.ExecuteIfBound();
 }
 
 
@@ -245,9 +292,22 @@ void SMGFXMaterialEditorLayers::OnEditorLayerSelectionChanged(const TArray<TObje
 	}
 }
 
-FReply SMGFXMaterialEditorLayers::OnNewLayerButtonClicked()
+FReply SMGFXMaterialEditorLayers::OnNewLayerButtonClicked(TSubclassOf<UMGFXMaterialShape> ShapeClass)
 {
-	AddNewLayerAboveSelection();
+	FScopedTransaction Transaction(LOCTEXT("AddLayer", "Add Layer"));
+
+	UMGFXMaterialLayer* NewLayer = CreateNewLayer();
+	if (ShapeClass)
+	{
+		NewLayer->Shape = NewObject<UMGFXMaterialShape>(NewLayer, ShapeClass, NAME_None, RF_Public | RF_Transactional);
+		NewLayer->Name = FMGFXMaterialEditor::MakeUniqueLayerName(NewLayer->Shape->GetShapeName(), MGFXMaterial.Get());
+	}
+
+	AddLayerAboveSelection(NewLayer);
+
+	TreeView->SetSelection(NewLayer);
+
+	OnLayersChangedEvent.ExecuteIfBound();
 
 	return FReply::Handled();
 }
