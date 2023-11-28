@@ -5,9 +5,6 @@
 
 #include "AssetToolsModule.h"
 #include "IMaterialEditor.h"
-#include "MaterialDomain.h"
-#include "MaterialEditorActions.h"
-#include "MaterialPropertyHelpers.h"
 #include "MGFXEditorModule.h"
 #include "MGFXMaterial.h"
 #include "MGFXMaterialEditorCommands.h"
@@ -49,13 +46,18 @@ const FName FMGFXMaterialEditor::Reroute_CanvasUVs(TEXT("CanvasUVs"));
 const FName FMGFXMaterialEditor::Reroute_CanvasFilterWidth(TEXT("CanvasFilterWidth"));
 const FName FMGFXMaterialEditor::Reroute_LayersOutput(TEXT("LayersOutput"));
 const int32 FMGFXMaterialEditor::GridSize(16);
+const FString FMGFXMaterialEditor::Param_LocationX(TEXT("LocationX"));
+const FString FMGFXMaterialEditor::Param_LocationY(TEXT("LocationY"));
+const FString FMGFXMaterialEditor::Param_Rotation(TEXT("Rotation"));
+const FString FMGFXMaterialEditor::Param_ScaleX(TEXT("ScaleX"));
+const FString FMGFXMaterialEditor::Param_ScaleY(TEXT("ScaleY"));
 
 
 FMGFXMaterialEditor::FMGFXMaterialEditor()
 	: NodePosBaselineLeft(GridSize * -64),
 	  SDFRerouteColor(FLinearColor(0.f, 0.f, 0.f)),
 	  RGBARerouteColor(FLinearColor(0.22f, .09f, 0.55f)),
-	  bAutoRegenerate(true)
+	  bAutoRegenerate(false)
 {
 }
 
@@ -425,29 +427,29 @@ void FMGFXMaterialEditor::NotifyPostChange(const FPropertyChangedEvent& Property
 					if (PropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Location))
 					{
 						// setting Location
-						SetMaterialScalarParameterValue(FName(ParamPrefix + "TranslateX"), EditedLayer->Transform.Location.X, bInteractive);
-						SetMaterialScalarParameterValue(FName(ParamPrefix + "TranslateY"), EditedLayer->Transform.Location.Y, bInteractive);
+						SetMaterialScalarParameterValue(FName(ParamPrefix + Param_LocationX), EditedLayer->Transform.Location.X, bInteractive);
+						SetMaterialScalarParameterValue(FName(ParamPrefix + Param_LocationY), EditedLayer->Transform.Location.Y, bInteractive);
 					}
 					else if (PropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Rotation))
 					{
 						// setting Rotation
 						const float NewValue = EditedLayer->Transform.Rotation;
-						const FString ParamName = TEXT("Rotation");
+						const FString ParamName = Param_Rotation;
 
 						SetMaterialScalarParameterValue(FName(ParamPrefix + ParamName), NewValue, bInteractive);
 					}
 					else if (PropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Scale))
 					{
 						// setting Scale
-						SetMaterialScalarParameterValue(FName(ParamPrefix + "ScaleX"), EditedLayer->Transform.Scale.X, bInteractive);
-						SetMaterialScalarParameterValue(FName(ParamPrefix + "ScaleY"), EditedLayer->Transform.Scale.Y, bInteractive);
+						SetMaterialScalarParameterValue(FName(ParamPrefix + Param_ScaleX), EditedLayer->Transform.Scale.X, bInteractive);
+						SetMaterialScalarParameterValue(FName(ParamPrefix + Param_ScaleY), EditedLayer->Transform.Scale.Y, bInteractive);
 					}
 					else if (ParentPropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Location))
 					{
 						// setting X or Y of Location
 						const bool bIsX = PropertyName == GET_MEMBER_NAME_CHECKED(FVector2f, X);
 						const float NewValue = bIsX ? EditedLayer->Transform.Location.X : EditedLayer->Transform.Location.Y;
-						const FString ParamName = bIsX ? TEXT("TranslateX") : TEXT("TranslateY");
+						const FString ParamName = bIsX ? Param_LocationX : Param_LocationY;
 
 						SetMaterialScalarParameterValue(FName(ParamPrefix + ParamName), NewValue, bInteractive);
 					}
@@ -456,7 +458,7 @@ void FMGFXMaterialEditor::NotifyPostChange(const FPropertyChangedEvent& Property
 						// setting X or Y of Scale
 						const bool bIsX = PropertyName == GET_MEMBER_NAME_CHECKED(FVector2f, X);
 						const float NewValue = bIsX ? EditedLayer->Transform.Scale.X : EditedLayer->Transform.Scale.Y;
-						const FString ParamName = bIsX ? TEXT("ScaleX") : TEXT("ScaleY");
+						const FString ParamName = bIsX ? Param_ScaleX : Param_ScaleY;
 
 						SetMaterialScalarParameterValue(FName(ParamPrefix + ParamName), NewValue, bInteractive);
 					}
@@ -524,6 +526,12 @@ void FMGFXMaterialEditor::NotifyPostChange(const FPropertyChangedEvent& Property
 				}
 			}
 		}
+	}
+
+	if (!bInteractive)
+	{
+		// any interactive preview changes should be cleared now
+		UpdatePreviewMaterial();
 	}
 
 	if (bAutoRegenerate && PropertyChangedEvent.ChangeType == EPropertyChangeType::ValueSet)
@@ -1006,7 +1014,7 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_TransformUVs(FMGFXMaterialBui
 		NodePos.Y += GridSize * 8;
 
 		UMaterialExpression* TranslateValueExp = Generate_Vector2Parameter(Builder, NodePos, Transform.Location, ParamPrefix, ParamGroup,
-		                                                                   10, "TranslateX", "TranslateY");
+		                                                                   10, Param_LocationX, Param_LocationY);
 		NodePos.Y -= GridSize * 8;
 
 		// subtract so that coordinate space matches UMG, positive offset means going right or down
@@ -1023,7 +1031,7 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_TransformUVs(FMGFXMaterialBui
 	{
 		NodePosOffset = FVector2D(0, GridSize * 8);
 		UMaterialExpressionScalarParameter* RotationExp = Builder.CreateScalarParam(
-			NodePos + NodePosOffset, FName(ParamPrefix + "Rotation"), ParamGroup, 20);
+			NodePos + NodePosOffset, FName(ParamPrefix + Param_Rotation), ParamGroup, 20);
 		SET_PROP(RotationExp, DefaultValue, Transform.Rotation);
 
 		NodePos.X += GridSize * 15;
@@ -1051,7 +1059,8 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_TransformUVs(FMGFXMaterialBui
 	if (bNoOptimization || Transform.Scale != FVector2f::One())
 	{
 		NodePos.Y += GridSize * 8;
-		UMaterialExpression* ScaleValueExp = Generate_Vector2Parameter(Builder, NodePos, Transform.Scale, ParamPrefix, ParamGroup, 30, "ScaleX", "ScaleY");
+		UMaterialExpression* ScaleValueExp = Generate_Vector2Parameter(Builder, NodePos, Transform.Scale,
+		                                                               ParamPrefix, ParamGroup, 30, Param_ScaleX, Param_ScaleY);
 		NodePos.Y -= GridSize * 8;
 
 		UMaterialExpressionDivide* ScaleUVsExp = Builder.Create<UMaterialExpressionDivide>(NodePos);

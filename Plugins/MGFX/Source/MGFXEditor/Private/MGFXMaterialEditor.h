@@ -274,6 +274,11 @@ public:
 	static const FName Reroute_CanvasFilterWidth;
 	static const FName Reroute_LayersOutput;
 	static const int32 GridSize;
+	static const FString Param_LocationX;
+	static const FString Param_LocationY;
+	static const FString Param_Rotation;
+	static const FString Param_ScaleX;
+	static const FString Param_ScaleY;
 
 	static FString MakeUniqueLayerName(const FString& Name, const UMGFXMaterial* InMaterial);
 };
