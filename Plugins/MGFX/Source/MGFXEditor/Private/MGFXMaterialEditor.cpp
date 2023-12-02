@@ -57,7 +57,7 @@ FMGFXMaterialEditor::FMGFXMaterialEditor()
 	: NodePosBaselineLeft(GridSize * -64),
 	  SDFRerouteColor(FLinearColor(0.f, 0.f, 0.f)),
 	  RGBARerouteColor(FLinearColor(0.22f, .09f, 0.55f)),
-	  bAutoRegenerate(false)
+	  bAutoRegenerate(true)
 {
 }
 
