@@ -13,7 +13,7 @@ UMGFXMaterialShape_Triangle::UMGFXMaterialShape_Triangle()
 	MaterialFunction = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Shape_Triangle.MF_MGFX_Shape_Triangle"));
 #endif
 
-	Visuals.Add(CreateDefaultSubobject<UMGFXMaterialShapeFill>(TEXT("DefaultFill")));
+	DefaultVisualsClass = UMGFXMaterialShapeFill::StaticClass();
 }
 
 FBox2D UMGFXMaterialShape_Triangle::GetBounds() const

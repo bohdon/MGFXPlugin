@@ -27,3 +27,21 @@ void UMGFXMaterial::GetAllLayers(TArray<TObjectPtr<UMGFXMaterialLayer>>& OutLaye
 		Layer->GetAllLayers(OutLayers);
 	}
 }
+
+void UMGFXMaterial::PostLoad()
+{
+	UObject::PostLoad();
+
+#if WITH_EDITOR
+	// fix up incorrect outers
+	TArray<TObjectPtr<UMGFXMaterialLayer>> AllLayers;
+	GetAllLayers(AllLayers);
+	for (TObjectPtr<UMGFXMaterialLayer> Layer : AllLayers)
+	{
+		if (Layer->GetOuter() != this)
+		{
+			Layer->Rename(nullptr, this);
+		}
+	}
+#endif
+}

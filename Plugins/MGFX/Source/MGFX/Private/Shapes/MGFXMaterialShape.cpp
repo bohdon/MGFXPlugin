@@ -4,6 +4,7 @@
 #include "Shapes/MGFXMaterialShape.h"
 
 #include "Misc/DataValidation.h"
+#include "Shapes/MGFXMaterialShapeVisual.h"
 
 
 #define LOCTEXT_NAMESPACE "MGFX"
@@ -32,6 +33,15 @@ FMGFXMaterialShapeInput FMGFXMaterialShapeInput::Vector4(const FString& InName, 
 FBox2D UMGFXMaterialShape::GetBounds() const
 {
 	return FBox2D(ForceInit);
+}
+
+void UMGFXMaterialShape::AddDefaultVisual()
+{
+	if (DefaultVisualsClass && Visuals.IsEmpty() && !HasAnyFlags(RF_ClassDefaultObject))
+	{
+		UMGFXMaterialShapeVisual* DefaultVisual = NewObject<UMGFXMaterialShapeVisual>(this, DefaultVisualsClass, NAME_None, RF_Public | RF_Transactional);
+		Visuals.Add(DefaultVisual);
+	}
 }
 
 #if WITH_EDITORONLY_DATA

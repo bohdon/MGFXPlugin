@@ -90,4 +90,6 @@ public:
 	// IMGFXMaterialLayerParentInterface
 	virtual const TArray<TObjectPtr<UMGFXMaterialLayer>>& GetLayers() const override { return RootLayers; }
 	virtual TArray<TObjectPtr<UMGFXMaterialLayer>>& GetMutableLayers() override { return RootLayers; }
+
+	virtual void PostLoad() override;
 };

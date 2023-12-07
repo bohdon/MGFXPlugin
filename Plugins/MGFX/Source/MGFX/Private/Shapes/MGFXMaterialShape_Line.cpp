@@ -13,7 +13,7 @@ UMGFXMaterialShape_Line::UMGFXMaterialShape_Line()
 	MaterialFunction = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Shape_Line.MF_MGFX_Shape_Line"));
 #endif
 
-	Visuals.Add(CreateDefaultSubobject<UMGFXMaterialShapeStroke>(TEXT("DefaultStroke")));
+	DefaultVisualsClass = UMGFXMaterialShapeStroke::StaticClass();
 }
 
 FBox2D UMGFXMaterialShape_Line::GetBounds() const

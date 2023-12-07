@@ -8,6 +8,7 @@
 #include "MGFXEditorModule.h"
 #include "MGFXMaterial.h"
 #include "MGFXMaterialEditorCommands.h"
+#include "MGFXMaterialEditorUtils.h"
 #include "MGFXMaterialLayer.h"
 #include "MGFXPropertyMacros.h"
 #include "ObjectEditorUtils.h"
@@ -15,6 +16,7 @@
 #include "SMGFXMaterialEditorLayers.h"
 #include "Factories/MaterialFactoryNew.h"
 #include "Framework/Commands/GenericCommands.h"
+#include "HAL/PlatformApplicationMisc.h"
 #include "Materials/MaterialExpressionAppendVector.h"
 #include "Materials/MaterialExpressionConstant.h"
 #include "Materials/MaterialExpressionConstant2Vector.h"
@@ -1470,7 +1472,8 @@ bool FMGFXMaterialEditor::CanDeleteSelectedLayers()
 
 void FMGFXMaterialEditor::CopySelectedLayers()
 {
-	// TODO
+	const FString ExportedText = FMGFXMaterialEditorUtils::CopyLayers(SelectedLayers);
+	FPlatformApplicationMisc::ClipboardCopy(*ExportedText);
 }
 
 bool FMGFXMaterialEditor::CanCopySelectedLayers()
@@ -1480,9 +1483,8 @@ bool FMGFXMaterialEditor::CanCopySelectedLayers()
 
 void FMGFXMaterialEditor::CutSelectedLayers()
 {
-	// TODO
-
-	OnLayersChanged();
+	CopySelectedLayers();
+	DeleteSelectedLayers();
 }
 
 bool FMGFXMaterialEditor::CanCutSelectedLayers()
@@ -1492,7 +1494,25 @@ bool FMGFXMaterialEditor::CanCutSelectedLayers()
 
 void FMGFXMaterialEditor::PasteLayers()
 {
-	// TODO
+	// paste into the first selected layer, or as a root layer
+	UObject* ContainerObject = SelectedLayers.IsEmpty() ? MGFXMaterial : Cast<UObject>(SelectedLayers[0]);
+	IMGFXMaterialLayerParentInterface* Container = CastChecked<IMGFXMaterialLayerParentInterface>(ContainerObject);
+
+	FScopedTransaction Transaction(FGenericCommands::Get().Paste->GetDescription());
+
+	// grab the text to paste from the clipboard.
+	FString TextToImport;
+	FPlatformApplicationMisc::ClipboardPaste(TextToImport);
+
+	bool bSuccess = true;
+	const TArray<UMGFXMaterialLayer*> PastedLayers = FMGFXMaterialEditorUtils::PasteLayers(MGFXMaterial, TextToImport, Container, bSuccess);
+	if (!bSuccess)
+	{
+		Transaction.Cancel();
+		return;
+	}
+
+	SetSelectedLayers(PastedLayers);
 
 	OnLayersChanged();
 }
@@ -1504,7 +1524,26 @@ bool FMGFXMaterialEditor::CanPasteLayers()
 
 void FMGFXMaterialEditor::DuplicateSelectedLayers()
 {
-	// TODO
+	check(!SelectedLayers.IsEmpty());
+
+	// always duplicating into the parent of the first topmost layer
+	const TArray<UMGFXMaterialLayer*> TopmostLayers = FMGFXMaterialEditorUtils::GetTopmostLayers(SelectedLayers);
+	check(!TopmostLayers.IsEmpty());
+
+	IMGFXMaterialLayerParentInterface* Container = TopmostLayers[0]->GetParentContainer();
+
+	const FString ExportedText = FMGFXMaterialEditorUtils::CopyLayers(SelectedLayers);
+
+	FScopedTransaction Transaction(FGenericCommands::Get().Duplicate->GetDescription());
+	bool bSuccess = true;
+	const TArray<UMGFXMaterialLayer*> DuplicatedLayers = FMGFXMaterialEditorUtils::PasteLayers(MGFXMaterial, ExportedText, Container, bSuccess);
+	if (!bSuccess)
+	{
+		Transaction.Cancel();
+		return;
+	}
+
+	SetSelectedLayers(DuplicatedLayers);
 
 	OnLayersChanged();
 }
@@ -1512,31 +1551,6 @@ void FMGFXMaterialEditor::DuplicateSelectedLayers()
 bool FMGFXMaterialEditor::CanDuplicateSelectedLayers()
 {
 	return !SelectedLayers.IsEmpty();
-}
-
-FString FMGFXMaterialEditor::MakeUniqueLayerName(const FString& Name, const UMGFXMaterial* InMaterial)
-{
-	if (!InMaterial)
-	{
-		return Name;
-	}
-
-	TArray<TObjectPtr<UMGFXMaterialLayer>> AllLayers;
-	InMaterial->GetAllLayers(AllLayers);
-
-	FString NewName = Name;
-
-	int32 Number = 1;
-	while (AllLayers.FindByPredicate([NewName](const TObjectPtr<UMGFXMaterialLayer> Layer)
-	{
-		return Layer->Name.Equals(NewName);
-	}))
-	{
-		NewName = Name + FString::FromInt(Number);
-		++Number;
-	}
-
-	return NewName;
 }
 
 

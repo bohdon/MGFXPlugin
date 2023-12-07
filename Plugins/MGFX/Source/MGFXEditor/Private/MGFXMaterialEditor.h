@@ -7,17 +7,19 @@
 #include "MGFXMaterialTypes.h"
 #include "MGFXMaterialBuilder.h"
 
-class SMGFXMaterialEditorLayers;
-class SMGFXMaterialEditorCanvas;
+class IMGFXMaterialLayerParentInterface;
 class IMaterialEditor;
 class SArtboardPanel;
 class SImage;
+class SMGFXMaterialEditorCanvas;
+class SMGFXMaterialEditorLayers;
 class UMGFXMaterial;
 class UMGFXMaterialLayer;
 class UMGFXMaterialShape;
 class UMGFXMaterialShapeFill;
 class UMGFXMaterialShapeStroke;
 class UMaterialExpressionNamedRerouteDeclaration;
+
 
 /**
  * Represents a paired set of UVs and matching calculated FilterWidth.
@@ -279,6 +281,4 @@ public:
 	static const FString Param_Rotation;
 	static const FString Param_ScaleX;
 	static const FString Param_ScaleY;
-
-	static FString MakeUniqueLayerName(const FString& Name, const UMGFXMaterial* InMaterial);
 };

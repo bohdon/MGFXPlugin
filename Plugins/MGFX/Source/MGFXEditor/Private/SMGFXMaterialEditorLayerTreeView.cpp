@@ -6,6 +6,7 @@
 #include "MGFXEditorStyle.h"
 #include "MGFXMaterial.h"
 #include "MGFXMaterialEditor.h"
+#include "MGFXMaterialEditorUtils.h"
 #include "MGFXMaterialLayer.h"
 #include "SlateOptMacros.h"
 #include "SMGFXMaterialEditorLayers.h"
@@ -233,7 +234,7 @@ bool SMGFXMaterialLayerRow::OnVerifyNameTextChanged(const FText& InText, FText& 
 		return true;
 	}
 
-	if (!NewName.Equals(FMGFXMaterialEditor::MakeUniqueLayerName(NewName, Item->GetTypedOuter<UMGFXMaterial>())))
+	if (!NewName.Equals(FMGFXMaterialEditorUtils::MakeUniqueLayerName(NewName, Item->GetTypedOuter<UMGFXMaterial>())))
 	{
 		OutErrorMessage = LOCTEXT("LayerNameNotUnique", "Layer names must be unique");
 		return false;

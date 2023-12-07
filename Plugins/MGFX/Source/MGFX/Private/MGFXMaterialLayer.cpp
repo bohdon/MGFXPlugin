@@ -140,7 +140,7 @@ void UMGFXMaterialLayer::SetParentLayer(UMGFXMaterialLayer* NewParent)
 	Parent = NewParent;
 }
 
-bool UMGFXMaterialLayer::IsParentLayer(UMGFXMaterialLayer* Layer) const
+bool UMGFXMaterialLayer::IsParentLayer(const UMGFXMaterialLayer* Layer) const
 {
 	check(Layer);
 
@@ -173,11 +173,45 @@ void UMGFXMaterialLayer::PostLoad()
 #endif
 }
 
-void UMGFXMaterialLayer::GetAllLayers(TArray<TObjectPtr<UMGFXMaterialLayer>>& OutLayers) const
+void UMGFXMaterialLayer::GetAllLayers(TArray<UMGFXMaterialLayer*>& OutLayers) const
 {
-	for (TObjectPtr<UMGFXMaterialLayer> Layer : Children)
+	for (UMGFXMaterialLayer* Layer : Children)
 	{
 		OutLayers.Add(Layer);
 		Layer->GetAllLayers(OutLayers);
 	}
 }
+
+#if WITH_EDITOR
+void UMGFXMaterialLayer::PreEditChange(FProperty* PropertyAboutToChange)
+{
+	UObject::PreEditChange(PropertyAboutToChange);
+
+	if (PropertyAboutToChange->GetFName() == GET_MEMBER_NAME_CHECKED(ThisClass, Shape))
+	{
+		LastKnownShape = Shape;
+	}
+}
+
+void UMGFXMaterialLayer::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	UObject::PostEditChangeProperty(PropertyChangedEvent);
+
+	if (PropertyChangedEvent.ChangeType == EPropertyChangeType::ValueSet)
+	{
+		if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(ThisClass, Shape) &&
+			PropertyChangedEvent.GetMemberPropertyName() == GET_MEMBER_NAME_CHECKED(ThisClass, Shape))
+		{
+			if (Shape && LastKnownShape.IsSet() && Shape != LastKnownShape.GetValue())
+			{
+				// there is an issue that causes a crash when importing layers via text (copy/paste in editor) and
+				// any subobject has a nested Instanced object property with a default object assigned in the constructor.
+				// so instead the default visual is added later, in this case whenever the user changes the Shape property of a layer.
+				Shape->AddDefaultVisual();
+			}
+		}
+	}
+
+	LastKnownShape.Reset();
+}
+#endif

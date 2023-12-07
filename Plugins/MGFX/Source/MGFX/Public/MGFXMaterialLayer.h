@@ -100,9 +100,9 @@ public:
 	void SetParentLayer(UMGFXMaterialLayer* NewParent);
 
 	/** Return true if this layer is a parent (either immediate or ancestor) of a layer. */
-	bool IsParentLayer(UMGFXMaterialLayer* Layer) const;
+	bool IsParentLayer(const UMGFXMaterialLayer* Layer) const;
 
-	void GetAllLayers(TArray<TObjectPtr<UMGFXMaterialLayer>>& OutLayers) const;
+	void GetAllLayers(TArray<UMGFXMaterialLayer*>& OutLayers) const;
 
 	// IMGFXMaterialLayerParentInterface
 	virtual const TArray<TObjectPtr<UMGFXMaterialLayer>>& GetLayers() const override { return Children; }
@@ -117,4 +117,14 @@ protected:
 	/** The parent layer, if any. */
 	UPROPERTY()
 	TObjectPtr<UMGFXMaterialLayer> Parent;
+
+#if WITH_EDITOR
+
+public:
+	/** The previous shape class during an edit change, used to track new shape objects. */
+	TOptional<UMGFXMaterialShape*> LastKnownShape;
+
+	virtual void PreEditChange(FProperty* PropertyAboutToChange) override;
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
 };

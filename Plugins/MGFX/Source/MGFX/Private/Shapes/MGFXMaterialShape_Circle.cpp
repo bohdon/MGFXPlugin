@@ -13,7 +13,7 @@ UMGFXMaterialShape_Circle::UMGFXMaterialShape_Circle()
 	MaterialFunction = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Shape_Circle.MF_MGFX_Shape_Circle"));
 #endif
 
-	Visuals.Add(CreateDefaultSubobject<UMGFXMaterialShapeFill>(TEXT("DefaultFill")));
+	DefaultVisualsClass = UMGFXMaterialShapeFill::StaticClass();
 }
 
 FBox2D UMGFXMaterialShape_Circle::GetBounds() const

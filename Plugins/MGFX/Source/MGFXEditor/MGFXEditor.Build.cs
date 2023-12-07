@@ -8,6 +8,7 @@ public class MGFXEditor : ModuleRules
 
 		PublicDependencyModuleNames.AddRange(new string[]
 		{
+			"ApplicationCore",
 			"AssetDefinition",
 			"Core",
 			"InputCore",

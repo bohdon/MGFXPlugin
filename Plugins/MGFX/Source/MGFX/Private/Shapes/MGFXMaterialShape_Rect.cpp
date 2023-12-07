@@ -13,7 +13,7 @@ UMGFXMaterialShape_Rect::UMGFXMaterialShape_Rect()
 	MaterialFunction = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Shape_Rect.MF_MGFX_Shape_Rect"));
 #endif
 
-	Visuals.Add(CreateDefaultSubobject<UMGFXMaterialShapeFill>(TEXT("DefaultFill")));
+	DefaultVisualsClass = UMGFXMaterialShapeFill::StaticClass();
 }
 
 FBox2D UMGFXMaterialShape_Rect::GetBounds() const

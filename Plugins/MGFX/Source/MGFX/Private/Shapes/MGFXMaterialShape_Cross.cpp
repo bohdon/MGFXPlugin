@@ -13,7 +13,7 @@ UMGFXMaterialShape_Cross::UMGFXMaterialShape_Cross()
 	MaterialFunction = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Shape_Cross.MF_MGFX_Shape_Cross"));
 #endif
 
-	Visuals.Add(CreateDefaultSubobject<UMGFXMaterialShapeStroke>(TEXT("DefaultStroke")));
+	DefaultVisualsClass = UMGFXMaterialShapeStroke::StaticClass();
 }
 
 FBox2D UMGFXMaterialShape_Cross::GetBounds() const

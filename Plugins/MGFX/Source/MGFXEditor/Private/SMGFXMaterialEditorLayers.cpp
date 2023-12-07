@@ -5,6 +5,7 @@
 
 #include "MGFXMaterial.h"
 #include "MGFXMaterialEditor.h"
+#include "MGFXMaterialEditorUtils.h"
 #include "MGFXMaterialLayer.h"
 #include "SlateOptMacros.h"
 #include "SMGFXMaterialEditorLayerTreeView.h"
@@ -131,7 +132,7 @@ UMGFXMaterialLayer* SMGFXMaterialEditorLayers::CreateNewLayer()
 {
 	// create layer
 	UMGFXMaterialLayer* NewLayer = NewObject<UMGFXMaterialLayer>(MGFXMaterial.Get(), NAME_None, RF_Public | RF_Transactional);
-	NewLayer->Name = FMGFXMaterialEditor::MakeUniqueLayerName(NewLayer->Name, MGFXMaterial.Get());
+	NewLayer->Name = FMGFXMaterialEditorUtils::MakeUniqueLayerName(NewLayer->Name, MGFXMaterial.Get());
 	return NewLayer;
 }
 
@@ -300,7 +301,8 @@ FReply SMGFXMaterialEditorLayers::OnNewLayerButtonClicked(TSubclassOf<UMGFXMater
 	if (ShapeClass)
 	{
 		NewLayer->Shape = NewObject<UMGFXMaterialShape>(NewLayer, ShapeClass, NAME_None, RF_Public | RF_Transactional);
-		NewLayer->Name = FMGFXMaterialEditor::MakeUniqueLayerName(NewLayer->Shape->GetShapeName(), MGFXMaterial.Get());
+		NewLayer->Shape->AddDefaultVisual();
+		NewLayer->Name = FMGFXMaterialEditorUtils::MakeUniqueLayerName(NewLayer->Shape->GetShapeName(), MGFXMaterial.Get());
 	}
 
 	AddLayerAboveSelection(NewLayer);

@@ -69,6 +69,10 @@ public:
 	UPROPERTY(EditAnywhere, Instanced, Category = "Fill / Stroke")
 	TArray<TObjectPtr<UMGFXMaterialShapeVisual>> Visuals;
 
+	/** The default visual to create when creating a new instance of this shape. */
+	UPROPERTY(Transient)
+	TSubclassOf<UMGFXMaterialShapeVisual> DefaultVisualsClass;
+
 	/** Return the user-facing name of this shape type. */
 	virtual FString GetShapeName() const { return ShapeName; }
 
@@ -78,6 +82,9 @@ public:
 
 	/** Return the local bounds of the shape */
 	virtual FBox2D GetBounds() const;
+
+	/** Add the default visual for this shape. */
+	virtual void AddDefaultVisual();
 
 #if WITH_EDITORONLY_DATA
 	/** Return the material function to use. */
