@@ -8,6 +8,7 @@
 #include "MGFXMaterialEditor.h"
 #include "MGFXMaterialEditorUtils.h"
 #include "MGFXMaterialLayer.h"
+#include "ScopedTransaction.h"
 #include "SlateOptMacros.h"
 #include "SMGFXMaterialEditorLayers.h"
 #include "Widgets/Text/SInlineEditableTextBlock.h"

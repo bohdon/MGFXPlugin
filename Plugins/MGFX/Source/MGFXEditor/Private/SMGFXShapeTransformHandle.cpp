@@ -4,8 +4,11 @@
 #include "SMGFXShapeTransformHandle.h"
 
 #include "MGFXEditorModule.h"
+#include "ScopedTransaction.h"
 #include "SlateOptMacros.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Widgets/SCanvas.h"
+#include "Widgets/Images/SImage.h"
 
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION

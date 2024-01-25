@@ -5,6 +5,8 @@
 
 #include "EditorViewportCommands.h"
 #include "SlateOptMacros.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
+
 
 #define LOCTEXT_NAMESPACE "MGFXMaterialEditor"
 

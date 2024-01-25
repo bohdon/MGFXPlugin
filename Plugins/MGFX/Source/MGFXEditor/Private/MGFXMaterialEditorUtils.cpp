@@ -8,6 +8,7 @@
 #include "UnrealExporter.h"
 #include "Exporters/Exporter.h"
 #include "Internationalization/TextPackageNamespaceUtil.h"
+#include "UObject/Package.h"
 
 
 // FMGFXMaterialLayerObjectTextFactory

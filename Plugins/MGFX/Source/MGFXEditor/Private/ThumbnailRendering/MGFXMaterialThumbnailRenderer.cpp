@@ -4,10 +4,14 @@
 #include "ThumbnailRendering/MGFXMaterialThumbnailRenderer.h"
 
 #include "MGFXMaterial.h"
+#include "RenderingThread.h"
+#include "SceneView.h"
 #include "SlateMaterialBrush.h"
 #include "ThumbnailHelpers.h"
+#include "Engine/Texture2D.h"
 #include "Slate/WidgetRenderer.h"
 #include "ThumbnailRendering/ThumbnailManager.h"
+#include "Widgets/Images/SImage.h"
 
 
 void UMGFXMaterialThumbnailRenderer::Draw(UObject* Object, int32 X, int32 Y, uint32 Width, uint32 Height, FRenderTarget* RenderTarget, FCanvas* Canvas,

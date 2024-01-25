@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "MGFXMaterialLayer.h"
 #include "Materials/Material.h"
+#include "Styling/SlateBrush.h"
 #include "MGFXMaterial.generated.h"
 
 class UMGFXMaterialShape;

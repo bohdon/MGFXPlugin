@@ -3,6 +3,7 @@
 
 #include "Shapes/MGFXMaterialShape.h"
 
+#include "Materials/MaterialFunctionInterface.h"
 #include "Misc/DataValidation.h"
 #include "Shapes/MGFXMaterialShapeVisual.h"
 

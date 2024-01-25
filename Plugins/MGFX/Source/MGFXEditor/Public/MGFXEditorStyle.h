@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "Styling/SlateStyle.h"
+
 
 /**
  * Custom editor slate style for the MGFX plugin.

@@ -2,6 +2,15 @@
 
 #pragma once
 
+#include "CoreMinimal.h"
+#include "SceneTypes.h"
+#include "UObject/SoftObjectPtr.h"
+
+class UMaterialFunctionInterface;
+class UMaterialExpressionMaterialFunctionCall;
+class UMaterialExpressionComment;
+class UMaterial;
+class UMaterialExpression;
 class UMaterialExpressionAppendVector;
 class UMaterialExpressionComponentMask;
 class UMaterialExpressionNamedRerouteDeclaration;

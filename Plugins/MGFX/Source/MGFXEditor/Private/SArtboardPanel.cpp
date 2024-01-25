@@ -5,6 +5,9 @@
 
 #include "MGFXEditorStyle.h"
 #include "SlateOptMacros.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Layout/ArrangedChildren.h"
+#include "Widgets/SOverlay.h"
 
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION

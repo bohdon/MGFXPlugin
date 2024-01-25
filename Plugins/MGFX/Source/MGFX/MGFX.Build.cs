@@ -11,11 +11,11 @@ public class MGFX : ModuleRules
 		PublicDependencyModuleNames.AddRange(new string[]
 		{
 			"Core",
+			"CoreUObject",
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
-			"CoreUObject",
 			"Engine",
 			"Slate",
 			"SlateCore",

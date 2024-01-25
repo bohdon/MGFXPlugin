@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "Factories.h"
-#include "UObject/Object.h"
 
 class IMGFXMaterialLayerParentInterface;
 class UMGFXMaterial;

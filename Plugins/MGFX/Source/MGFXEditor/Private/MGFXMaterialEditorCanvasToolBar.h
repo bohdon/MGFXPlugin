@@ -4,6 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "SViewportToolBar.h"
+#include "Framework/Commands/UICommandList.h"
+#include "Framework/MultiBox/MultiBoxExtender.h"
 #include "Widgets/SCompoundWidget.h"
 
 

@@ -4,6 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "MGFXMaterialTypes.h"
+#include "Math/TransformCalculus2D.h"
+#include "UObject/Interface.h"
 #include "UObject/Object.h"
 #include "MGFXMaterialLayer.generated.h"
 

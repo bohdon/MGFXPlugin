@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "Widgets/SCompoundWidget.h"
 
+class FScopedTransaction;
+
 
 enum class EMGFXShapeTransformMode : uint8
 {

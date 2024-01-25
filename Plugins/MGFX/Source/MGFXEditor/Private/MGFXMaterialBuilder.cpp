@@ -9,6 +9,7 @@
 #include "Materials/MaterialExpressionAppendVector.h"
 #include "Materials/MaterialExpressionComment.h"
 #include "Materials/MaterialExpressionComponentMask.h"
+#include "Materials/MaterialExpressionMaterialFunctionCall.h"
 #include "Materials/MaterialExpressionNamedReroute.h"
 #include "Materials/MaterialExpressionParameter.h"
 #include "Materials/MaterialExpressionScalarParameter.h"

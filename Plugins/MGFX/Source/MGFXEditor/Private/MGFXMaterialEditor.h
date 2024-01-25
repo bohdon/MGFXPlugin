@@ -3,9 +3,11 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "EditorUndoClient.h"
 #include "IMGFXMaterialEditor.h"
 #include "MGFXMaterialTypes.h"
 #include "MGFXMaterialBuilder.h"
+#include "Misc/NotifyHook.h"
 
 class IMGFXMaterialLayerParentInterface;
 class IMaterialEditor;

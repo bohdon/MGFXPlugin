@@ -7,6 +7,7 @@
 #include "MGFXMaterialEditor.h"
 #include "MGFXMaterialEditorUtils.h"
 #include "MGFXMaterialLayer.h"
+#include "ScopedTransaction.h"
 #include "SlateOptMacros.h"
 #include "SMGFXMaterialEditorLayerTreeView.h"
 #include "Framework/Commands/GenericCommands.h"
@@ -14,6 +15,7 @@
 #include "Shapes/MGFXMaterialShape_Circle.h"
 #include "Shapes/MGFXMaterialShape_Rect.h"
 #include "Shapes/MGFXMaterialShape_Triangle.h"
+#include "Widgets/Input/SButton.h"
 
 #define LOCTEXT_NAMESPACE "MGFXMaterialEditor"
 

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "MGFXEditorStyle.h"
+#include "Framework/Commands/Commands.h"
 
 
 /**
@@ -41,5 +42,5 @@ public:
 	/** Set the canvas view scale to 300% */
 	TSharedPtr<FUICommandInfo> ZoomTo300;
 
-	void RegisterCommands() override;
+	virtual void RegisterCommands() override;
 };

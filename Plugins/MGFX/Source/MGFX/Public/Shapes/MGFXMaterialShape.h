@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "MGFXMaterialTypes.h"
+#include "Templates/SubclassOf.h"
 #include "UObject/Object.h"
 #include "MGFXMaterialShape.generated.h"
 

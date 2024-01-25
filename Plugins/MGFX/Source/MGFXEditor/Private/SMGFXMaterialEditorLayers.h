@@ -3,13 +3,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Framework/Commands/UICommandList.h"
+#include "Shapes/MGFXMaterialShape.h"
 #include "Widgets/SCompoundWidget.h"
 
 class FMGFXMaterialEditor;
 class SMGFXMaterialEditorLayerTreeView;
 class UMGFXMaterial;
 class UMGFXMaterialLayer;
-class UMGFXMaterialShape;
 
 
 /**

@@ -4,15 +4,18 @@
 
 #include "CoreMinimal.h"
 #include "SMGFXShapeTransformHandle.h"
+#include "Animation/CurveSequence.h"
+#include "Framework/Commands/UICommandList.h"
 #include "Widgets/SCompoundWidget.h"
 
-class SMGFXShapeTransformHandle;
 class FMGFXMaterialEditor;
 class SArtboardPanel;
 class SCanvas;
 class SImage;
+class SMGFXShapeTransformHandle;
 class UMGFXMaterial;
 class UMGFXMaterialLayer;
+class UMaterialInterface;
 
 
 /**

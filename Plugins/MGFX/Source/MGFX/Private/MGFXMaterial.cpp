@@ -4,6 +4,7 @@
 #include "MGFXMaterial.h"
 
 #include "MaterialDomain.h"
+#include "Brushes/SlateColorBrush.h"
 
 
 UMGFXMaterial::UMGFXMaterial()

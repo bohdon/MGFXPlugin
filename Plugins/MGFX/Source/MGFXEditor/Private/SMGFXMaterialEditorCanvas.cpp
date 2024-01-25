@@ -12,8 +12,12 @@
 #include "SArtboardPanel.h"
 #include "SlateOptMacros.h"
 #include "SMGFXShapeTransformHandle.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Styling/ToolBarStyle.h"
 #include "Widgets/SCanvas.h"
+#include "Widgets/Images/SImage.h"
+#include "Widgets/Input/SComboButton.h"
+#include "Widgets/Layout/SSpacer.h"
 
 
 #define LOCTEXT_NAMESPACE "MGFXMaterialEditor"

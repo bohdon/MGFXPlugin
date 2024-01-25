@@ -3,8 +3,11 @@
 
 #include "MGFXEditorStyle.h"
 
+#include "Styling/AppStyle.h"
 #include "Styling/SlateStyleMacros.h"
 #include "Styling/SlateStyleRegistry.h"
+#include "Styling/SlateTypes.h"
+#include "Styling/StyleColors.h"
 
 
 const FName FMGFXEditorStyle::StaticStyleSetName(TEXT("MGFXEditorStyle"));

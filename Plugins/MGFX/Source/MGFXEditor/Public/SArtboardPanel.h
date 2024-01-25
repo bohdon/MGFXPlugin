@@ -3,6 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Layout/Children.h"
+#include "Layout/WidgetSlotWithAttributeSupport.h"
+#include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SPanel.h"
 
 
