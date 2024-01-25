@@ -3,13 +3,14 @@
 
 #include "Shapes/MGFXMaterialShape_Line.h"
 
+#include "MGFXMaterialFunctionHelpers.h"
 #include "Shapes/MGFXMaterialShapeVisual.h"
 
 
 UMGFXMaterialShape_Line::UMGFXMaterialShape_Line()
 {
 	ShapeName = TEXT("Line");
-	MaterialFunction = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Shape_Line.MF_MGFX_Shape_Line"));
+	MaterialFunction = FMGFXMaterialFunctions::GetShape(ShapeName);
 	DefaultVisualsClass = UMGFXMaterialShapeStroke::StaticClass();
 }
 

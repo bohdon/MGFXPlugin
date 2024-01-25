@@ -42,9 +42,15 @@ void UMGFXMaterialShape::AddDefaultVisual()
 	}
 }
 
+TSoftObjectPtr<UMaterialFunctionInterface> UMGFXMaterialShape::GetMaterialFunctionPtr() const
+{
+	return MaterialFunction;
+}
+
 UMaterialFunctionInterface* UMGFXMaterialShape::GetMaterialFunction() const
 {
-	return !MaterialFunction.IsNull() ? MaterialFunction.LoadSynchronous() : nullptr;
+	const TSoftObjectPtr<UMaterialFunctionInterface>& FunctionPtr = GetMaterialFunctionPtr();
+	return !FunctionPtr.IsNull() ? FunctionPtr.LoadSynchronous() : nullptr;
 }
 
 #if WITH_EDITOR

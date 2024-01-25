@@ -3,13 +3,14 @@
 
 #include "Shapes/MGFXMaterialShape_Cross.h"
 
+#include "MGFXMaterialFunctionHelpers.h"
 #include "Shapes/MGFXMaterialShapeVisual.h"
 
 
 UMGFXMaterialShape_Cross::UMGFXMaterialShape_Cross()
 {
 	ShapeName = TEXT("Cross");
-	MaterialFunction = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Shape_Cross.MF_MGFX_Shape_Cross"));
+	MaterialFunction = FMGFXMaterialFunctions::GetShape(ShapeName);
 	DefaultVisualsClass = UMGFXMaterialShapeStroke::StaticClass();
 }
 

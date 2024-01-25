@@ -3,13 +3,14 @@
 
 #include "Shapes/MGFXMaterialShape_GridDots.h"
 
+#include "MGFXMaterialFunctionHelpers.h"
 #include "Shapes/MGFXMaterialShapeVisual.h"
 
 
 UMGFXMaterialShape_GridDots::UMGFXMaterialShape_GridDots()
 {
 	ShapeName = TEXT("GridDots");
-	MaterialFunction = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Shape_GridDots.MF_MGFX_Shape_GridDots"));
+	MaterialFunction = FMGFXMaterialFunctions::GetShape(ShapeName);
 	DefaultVisualsClass = UMGFXMaterialShapeFill::StaticClass();
 }
 

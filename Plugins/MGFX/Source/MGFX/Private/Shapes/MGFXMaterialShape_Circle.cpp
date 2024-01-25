@@ -3,13 +3,14 @@
 
 #include "Shapes/MGFXMaterialShape_Circle.h"
 
+#include "MGFXMaterialFunctionHelpers.h"
 #include "Shapes/MGFXMaterialShapeVisual.h"
 
 
 UMGFXMaterialShape_Circle::UMGFXMaterialShape_Circle()
 {
 	ShapeName = TEXT("Circle");
-	MaterialFunction = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Shape_Circle.MF_MGFX_Shape_Circle"));
+	MaterialFunction = FMGFXMaterialFunctions::GetShape(ShapeName);
 	DefaultVisualsClass = UMGFXMaterialShapeFill::StaticClass();
 }
 

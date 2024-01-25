@@ -3,13 +3,14 @@
 
 #include "Shapes/MGFXMaterialShape_Rect.h"
 
+#include "MGFXMaterialFunctionHelpers.h"
 #include "Shapes/MGFXMaterialShapeVisual.h"
 
 
 UMGFXMaterialShape_Rect::UMGFXMaterialShape_Rect()
 {
 	ShapeName = TEXT("Rect");
-	MaterialFunction = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Shape_Rect.MF_MGFX_Shape_Rect"));
+	MaterialFunction = FMGFXMaterialFunctions::GetShape(ShapeName);
 	DefaultVisualsClass = UMGFXMaterialShapeFill::StaticClass();
 }
 

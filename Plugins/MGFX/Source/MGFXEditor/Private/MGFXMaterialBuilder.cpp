@@ -148,16 +148,24 @@ UMaterialExpressionComment* FMGFXMaterialBuilder::CreateComment(const FVector2D&
 
 UMaterialExpressionMaterialFunctionCall* FMGFXMaterialBuilder::CreateFunction(const FVector2D& NodePos, UMaterialFunctionInterface* Function) const
 {
-	check(Function);
 	UMaterialExpressionMaterialFunctionCall* FunctionExp = Create<UMaterialExpressionMaterialFunctionCall>(NodePos);
-	SET_PROP(FunctionExp, MaterialFunction, Function);
+	if (Function)
+	{
+		SET_PROP(FunctionExp, MaterialFunction, Function);
+	}
 	return FunctionExp;
 }
 
 UMaterialExpressionMaterialFunctionCall* FMGFXMaterialBuilder::CreateFunction(const FVector2D& NodePos,
                                                                               const TSoftObjectPtr<UMaterialFunctionInterface>& FunctionPtr) const
 {
-	check(!FunctionPtr.IsNull());
+	if (FunctionPtr.IsNull())
+	{
+		UE_LOG(LogMGFXEditor, Error, TEXT("MaterialFunction not found: %s"), *FunctionPtr.ToString());
+		// still return a valid node
+		return CreateFunction(NodePos, nullptr);
+	}
+
 	return CreateFunction(NodePos, FunctionPtr.LoadSynchronous());
 }
 

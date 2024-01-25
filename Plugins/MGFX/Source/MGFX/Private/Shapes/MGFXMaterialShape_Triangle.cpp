@@ -3,13 +3,14 @@
 
 #include "Shapes/MGFXMaterialShape_Triangle.h"
 
+#include "MGFXMaterialFunctionHelpers.h"
 #include "Shapes/MGFXMaterialShapeVisual.h"
 
 
 UMGFXMaterialShape_Triangle::UMGFXMaterialShape_Triangle()
 {
 	ShapeName = TEXT("Triangle");
-	MaterialFunction = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Shape_Triangle.MF_MGFX_Shape_Triangle"));
+	MaterialFunction = FMGFXMaterialFunctions::GetShape(ShapeName);
 	DefaultVisualsClass = UMGFXMaterialShapeFill::StaticClass();
 }
 

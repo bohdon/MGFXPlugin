@@ -81,6 +81,9 @@ public:
 	/** Return the user-facing name of this shape type. */
 	virtual FString GetShapeName() const { return ShapeName; }
 
+	/** Return a soft pointer to the material function to use. */
+	virtual TSoftObjectPtr<UMaterialFunctionInterface> GetMaterialFunctionPtr() const;
+
 	/** Return the material function to use. */
 	virtual UMaterialFunctionInterface* GetMaterialFunction() const;
 

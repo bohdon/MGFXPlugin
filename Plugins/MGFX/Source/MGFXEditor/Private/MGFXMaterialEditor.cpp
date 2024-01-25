@@ -9,6 +9,7 @@
 #include "MGFXMaterial.h"
 #include "MGFXMaterialEditorCommands.h"
 #include "MGFXMaterialEditorUtils.h"
+#include "MGFXMaterialFunctionHelpers.h"
 #include "MGFXMaterialLayer.h"
 #include "MGFXPropertyMacros.h"
 #include "ObjectEditorUtils.h"
@@ -797,8 +798,7 @@ void FMGFXMaterialEditor::Generate_AddUVsBoilerplate(FMGFXMaterialBuilder& Build
 		NodePos.X += GridSize * 15;
 
 		// create filter width func
-		UMaterialExpressionMaterialFunctionCall* FilterWidthFuncExp = Builder.CreateFunction(
-			NodePos, TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_FilterWidth.MF_MGFX_FilterWidth")));
+		UMaterialExpressionMaterialFunctionCall* FilterWidthFuncExp = Builder.CreateFunction(NodePos, FMGFXMaterialFunctions::GetVisual("FilterWidth"));
 		Builder.Connect(OutputRerouteExp, "", FilterWidthFuncExp, "");
 		Builder.Connect(FilterWidthBiasExp, "", FilterWidthFuncExp, "Bias");
 
@@ -925,8 +925,8 @@ FMGFXMaterialLayerOutputs FMGFXMaterialEditor::Generate_Layer(FMGFXMaterialBuild
 	if (bNoOptimization || bHasModifiedScale)
 	{
 		UMaterialExpressionMaterialFunctionCall* UVFilterFuncExp = Builder.CreateFunction(
-			NodePos + FVector2D(0, GridSize * 8),
-			TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_FilterWidth.MF_MGFX_FilterWidth")));
+			NodePos + FVector2D(0, GridSize * 8), FMGFXMaterialFunctions::GetVisual("FilterWidth"));
+
 		Builder.Connect(UVsExp, "", UVFilterFuncExp, "");
 
 		NodePos.X += GridSize * 15;
@@ -1057,8 +1057,7 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_TransformUVs(FMGFXMaterialBui
 
 		NodePos.X += GridSize * 15;
 
-		UMaterialExpressionMaterialFunctionCall* RotateUVsExp = Builder.CreateFunction(
-			NodePos, TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Rotate.MF_MGFX_Rotate")));
+		UMaterialExpressionMaterialFunctionCall* RotateUVsExp = Builder.CreateFunction(NodePos, FMGFXMaterialFunctions::GetTransform("Rotate"));
 		Builder.Connect(LastInputExp, "", RotateUVsExp, "UVs");
 		Builder.Connect(RotateConvExp, "", RotateUVsExp, "Rotation");
 		LastInputExp = RotateUVsExp;
@@ -1204,12 +1203,7 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_Shape(FMGFXMaterialBuilder& B
 	NodePos.Y = OrigNodePoseY;
 
 	// create shape function
-	UMaterialExpressionMaterialFunctionCall* ShapeExp = Builder.Create<UMaterialExpressionMaterialFunctionCall>(NodePos);
-	UMaterialFunctionInterface* ShapeFunc = Shape->GetMaterialFunction();
-	if (ensure(ShapeFunc))
-	{
-		SET_PROP(ShapeExp, MaterialFunction, ShapeFunc);
-	}
+	UMaterialExpressionMaterialFunctionCall* ShapeExp = Builder.CreateFunction(NodePos, Shape->GetMaterialFunctionPtr());
 
 	// connect uvs
 	if (InUVsExp)
@@ -1263,28 +1257,28 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_MergeVisual(FMGFXMaterialBuil
 	switch (Operation)
 	{
 	case EMGFXLayerMergeOperation::Over:
-		MergeFunc = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Merge_Over.MF_MGFX_Merge_Over"));
+		MergeFunc = FMGFXMaterialFunctions::GetMerge("Over");
 		break;
 	case EMGFXLayerMergeOperation::Add:
-		MergeFunc = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Merge_Add.MF_MGFX_Merge_Add"));
+		MergeFunc = FMGFXMaterialFunctions::GetMerge("Add");
 		break;
 	case EMGFXLayerMergeOperation::Subtract:
-		MergeFunc = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Merge_Subtract.MF_MGFX_Merge_Subtract"));
+		MergeFunc = FMGFXMaterialFunctions::GetMerge("Subtract");
 		break;
 	case EMGFXLayerMergeOperation::Multiply:
-		MergeFunc = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Merge_Multiply.MF_MGFX_Merge_Multiply"));
+		MergeFunc = FMGFXMaterialFunctions::GetMerge("Multiply");
 		break;
 	case EMGFXLayerMergeOperation::In:
-		MergeFunc = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Merge_In.MF_MGFX_Merge_In"));
+		MergeFunc = FMGFXMaterialFunctions::GetMerge("In");
 		break;
 	case EMGFXLayerMergeOperation::Out:
-		MergeFunc = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Merge_Out.MF_MGFX_Merge_Out"));
+		MergeFunc = FMGFXMaterialFunctions::GetMerge("Out");
 		break;
 	case EMGFXLayerMergeOperation::Mask:
-		MergeFunc = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Merge_Mask.MF_MGFX_Merge_Mask"));
+		MergeFunc = FMGFXMaterialFunctions::GetMerge("Mask");
 		break;
 	case EMGFXLayerMergeOperation::Stencil:
-		MergeFunc = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Merge_Stencil.MF_MGFX_Merge_Stencil"));
+		MergeFunc = FMGFXMaterialFunctions::GetMerge("Stencil");
 		break;
 	default: ;
 	}
@@ -1362,8 +1356,7 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_ShapeFill(FMGFXMaterialBuilde
 	NodePos.X += GridSize * 15;
 
 	// add fill func
-	UMaterialExpressionMaterialFunctionCall* FillExp = Builder.CreateFunction(
-		NodePos, TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Fill.MF_MGFX_Fill")));
+	UMaterialExpressionMaterialFunctionCall* FillExp = Builder.CreateFunction(NodePos, FMGFXMaterialFunctions::GetVisual("Fill"));
 	Builder.Connect(ShapeExp, "SDF", FillExp, "SDF");
 	if (FilterWidthUsageExp)
 	{
@@ -1384,8 +1377,7 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_ShapeFill(FMGFXMaterialBuilde
 	NodePos.X += GridSize * 15;
 
 	// mutiply by color, and append to RGBA
-	UMaterialExpressionMaterialFunctionCall* TintExp = Builder.CreateFunction(
-		NodePos, TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Tint.MF_MGFX_Tint")));
+	UMaterialExpressionMaterialFunctionCall* TintExp = Builder.CreateFunction(NodePos, FMGFXMaterialFunctions::GetVisual("Tint"));
 	Builder.Connect(FillExp, "", TintExp, "In");
 	Builder.Connect(ColorExp, "", TintExp, "RGB");
 	Builder.Connect(ColorExp, "A", TintExp, "A");
@@ -1415,8 +1407,7 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_ShapeStroke(FMGFXMaterialBuil
 	NodePos.X += GridSize * 15;
 
 	// add stroke func
-	UMaterialExpressionMaterialFunctionCall* StrokeExp = Builder.CreateFunction(
-		NodePos, TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Stroke.MF_MGFX_Stroke")));
+	UMaterialExpressionMaterialFunctionCall* StrokeExp = Builder.CreateFunction(NodePos, FMGFXMaterialFunctions::GetVisual("Stroke"));
 	Builder.Connect(ShapeExp, "SDF", StrokeExp, "SDF");
 	Builder.Connect(StrokeWidthExp, "", StrokeExp, "StrokeWidth");
 	if (FilterWidthUsageExp)
@@ -1434,8 +1425,7 @@ UMaterialExpression* FMGFXMaterialEditor::Generate_ShapeStroke(FMGFXMaterialBuil
 	NodePos.X += GridSize * 15;
 
 	// mutiply by color, and append to RGBA
-	UMaterialExpressionMaterialFunctionCall* TintExp = Builder.CreateFunction(
-		NodePos, TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Tint.MF_MGFX_Tint")));
+	UMaterialExpressionMaterialFunctionCall* TintExp = Builder.CreateFunction(NodePos, FMGFXMaterialFunctions::GetVisual("Tint"));
 	Builder.Connect(StrokeExp, "", TintExp, "In");
 	Builder.Connect(ColorExp, "", TintExp, "RGB");
 	Builder.Connect(ColorExp, "A", TintExp, "A");
