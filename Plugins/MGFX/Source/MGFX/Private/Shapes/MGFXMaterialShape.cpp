@@ -4,8 +4,10 @@
 #include "Shapes/MGFXMaterialShape.h"
 
 #include "Materials/MaterialFunctionInterface.h"
-#include "Misc/DataValidation.h"
 #include "Shapes/MGFXMaterialShapeVisual.h"
+#include "Misc/DataValidation.h"
+
+#include UE_INLINE_GENERATED_CPP_BY_NAME(MGFXMaterialShape)
 
 
 #define LOCTEXT_NAMESPACE "MGFX"
@@ -31,11 +33,6 @@ FMGFXMaterialShapeInput FMGFXMaterialShapeInput::Vector4(const FString& InName, 
 	return FMGFXMaterialShapeInput(InName, EMGFXMaterialShapeInputType::Vector4, FLinearColor(InValue.X, InValue.Y, InValue.Z, InValue.W));
 }
 
-FBox2D UMGFXMaterialShape::GetBounds() const
-{
-	return FBox2D(ForceInit);
-}
-
 void UMGFXMaterialShape::AddDefaultVisual()
 {
 	if (DefaultVisualsClass && Visuals.IsEmpty() && !HasAnyFlags(RF_ClassDefaultObject))
@@ -45,10 +42,20 @@ void UMGFXMaterialShape::AddDefaultVisual()
 	}
 }
 
-#if WITH_EDITORONLY_DATA
 UMaterialFunctionInterface* UMGFXMaterialShape::GetMaterialFunction() const
 {
 	return !MaterialFunction.IsNull() ? MaterialFunction.LoadSynchronous() : nullptr;
+}
+
+#if WITH_EDITOR
+FBox2D UMGFXMaterialShape::GetBounds() const
+{
+	return FBox2D(ForceInit);
+}
+
+TArray<FMGFXMaterialShapeInput> UMGFXMaterialShape::GetInputs() const
+{
+	return GetInputs_BP();
 }
 
 TArray<FMGFXMaterialShapeInput> UMGFXMaterialShape::GetInputs_BP_Implementation() const
@@ -57,13 +64,6 @@ TArray<FMGFXMaterialShapeInput> UMGFXMaterialShape::GetInputs_BP_Implementation(
 	return TArray<FMGFXMaterialShapeInput>();
 }
 
-TArray<FMGFXMaterialShapeInput> UMGFXMaterialShape::GetInputs() const
-{
-	return GetInputs_BP();
-}
-#endif
-
-#if WITH_EDITOR
 EDataValidationResult UMGFXMaterialShape::IsDataValid(FDataValidationContext& Context) const
 {
 	EDataValidationResult Result = Super::IsDataValid(Context);

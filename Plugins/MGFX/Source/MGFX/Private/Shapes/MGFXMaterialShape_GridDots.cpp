@@ -8,15 +8,12 @@
 
 UMGFXMaterialShape_GridDots::UMGFXMaterialShape_GridDots()
 {
-#if WITH_EDITORONLY_DATA
 	ShapeName = TEXT("GridDots");
 	MaterialFunction = TSoftObjectPtr<UMaterialFunctionInterface>(FString("/MGFX/MaterialFunctions/MF_MGFX_Shape_GridDots.MF_MGFX_Shape_GridDots"));
-#endif
-
 	DefaultVisualsClass = UMGFXMaterialShapeFill::StaticClass();
 }
 
-#if WITH_EDITORONLY_DATA
+#if WITH_EDITOR
 TArray<FMGFXMaterialShapeInput> UMGFXMaterialShape_GridDots::GetInputs() const
 {
 	TArray<FMGFXMaterialShapeInput> Result;

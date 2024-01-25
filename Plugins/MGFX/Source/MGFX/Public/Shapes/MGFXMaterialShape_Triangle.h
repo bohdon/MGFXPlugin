@@ -26,10 +26,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Triangle")
 	float CornerRadius = 0.f;
 
+#if WITH_EDITOR
 	virtual bool HasBounds() const override { return true; }
 	virtual FBox2D GetBounds() const override;
-
-#if WITH_EDITORONLY_DATA
 	virtual TArray<FMGFXMaterialShapeInput> GetInputs() const override;
 #endif
 };

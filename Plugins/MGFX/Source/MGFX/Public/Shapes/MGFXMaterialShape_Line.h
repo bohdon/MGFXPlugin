@@ -24,10 +24,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Line")
 	FVector2f PointB = FVector2f(100.f, 0.f);
 
+#if WITH_EDITOR
 	virtual bool HasBounds() const override { return true; }
 	virtual FBox2D GetBounds() const override;
-
-#if WITH_EDITORONLY_DATA
 	virtual TArray<FMGFXMaterialShapeInput> GetInputs() const override;
 #endif
 };

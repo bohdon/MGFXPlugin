@@ -83,6 +83,7 @@ public:
 	UPROPERTY(EditAnywhere, Instanced, Category = "Shape")
 	TObjectPtr<UMGFXMaterialShape> Shape;
 
+#if WITH_EDITOR
 	/** Return the accumulated transform of this layer. */
 	FTransform2D GetTransform() const;
 
@@ -94,6 +95,7 @@ public:
 
 	/** Return the local bounds of this layer's shape. */
 	FBox2D GetBounds() const;
+#endif
 
 	UMGFXMaterialLayer* GetParentLayer() const { return Parent; }
 

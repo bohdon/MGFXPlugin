@@ -63,6 +63,10 @@ class MGFX_API UMGFXMaterialShape : public UObject
 	GENERATED_BODY()
 
 public:
+	/** The name of this shape. */
+	UPROPERTY(EditDefaultsOnly, Category = "Shape|Editor")
+	FString ShapeName;
+
 	/** The operation to use when merging this shape with the one below. */
 	UPROPERTY(EditAnywhere, Category = "Shape")
 	EMGFXShapeMergeOperation ShapeMergeOperation;
@@ -77,6 +81,13 @@ public:
 	/** Return the user-facing name of this shape type. */
 	virtual FString GetShapeName() const { return ShapeName; }
 
+	/** Return the material function to use. */
+	virtual UMaterialFunctionInterface* GetMaterialFunction() const;
+
+	/** Add the default visual for this shape. */
+	virtual void AddDefaultVisual();
+
+#if WITH_EDITOR
 	// TODO: move to SMGFXMaterialShape widgets defined for each shape...
 	/** Return true if the shape has finite bounds. */
 	virtual bool HasBounds() const { return false; }
@@ -84,30 +95,17 @@ public:
 	/** Return the local bounds of the shape */
 	virtual FBox2D GetBounds() const;
 
-	/** Add the default visual for this shape. */
-	virtual void AddDefaultVisual();
-
-#if WITH_EDITORONLY_DATA
-	/** Return the material function to use. */
-	virtual UMaterialFunctionInterface* GetMaterialFunction() const;
-
 	/** Return an array of all the inputs to use. */
 	virtual TArray<FMGFXMaterialShapeInput> GetInputs() const;
 
 	UFUNCTION(BlueprintNativeEvent, DisplayName = "GetInputs")
 	TArray<FMGFXMaterialShapeInput> GetInputs_BP() const;
 
-protected:
-	/** The name of this shape. */
-	UPROPERTY(EditDefaultsOnly, Category = "Shape|Editor")
-	FString ShapeName;
+	virtual EDataValidationResult IsDataValid(FDataValidationContext& Context) const override;
+#endif
 
+protected:
 	/** The material function of this shape. */
 	UPROPERTY(EditDefaultsOnly, Category = "Shape|Editor")
 	TSoftObjectPtr<UMaterialFunctionInterface> MaterialFunction;
-#endif
-
-#if WITH_EDITOR
-	virtual EDataValidationResult IsDataValid(FDataValidationContext& Context) const override;
-#endif
 };

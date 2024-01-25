@@ -26,7 +26,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "GridDots")
 	float Size = 2.f;
 
-#if WITH_EDITORONLY_DATA
+#if WITH_EDITOR
 	virtual TArray<FMGFXMaterialShapeInput> GetInputs() const override;
 #endif
 };

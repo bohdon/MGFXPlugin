@@ -100,6 +100,7 @@ UMGFXMaterialLayer::UMGFXMaterialLayer()
 {
 }
 
+#if WITH_EDITOR
 FTransform2D UMGFXMaterialLayer::GetTransform() const
 {
 	return Transform.ToTransform2D().Concatenate(GetParentTransform());
@@ -119,6 +120,7 @@ FBox2D UMGFXMaterialLayer::GetBounds() const
 {
 	return Shape ? Shape->GetBounds() : FBox2D(ForceInit);
 }
+#endif
 
 
 IMGFXMaterialLayerParentInterface* UMGFXMaterialLayer::GetParentContainer() const
