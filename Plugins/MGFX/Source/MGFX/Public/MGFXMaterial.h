@@ -43,24 +43,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Canvas")
 	FVector2f BaseCanvasSize;
 
-	/** Should the filter width be computed dynamically? If the material needs to be scaled up whilst preserving sharp edges, set this to true. */
+	/** Should the filter width be computed dynamically? If the material needs to be scaled up or down whilst preserving sharp edges, set this to true. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Canvas")
 	bool bComputeFilterWidth = true;
 
 	/**
-	 * The scale applied to the computed filter width, or the constant filter width to use when bComputeFilterWidth is disabled.
+	 * The constant filter width to use when bComputeFilterWidth is disabled.
 	 * Larger values will result in softer edges and smoother lines.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Canvas")
-	float FilterWidthScale = 1.f;
-
-	/**
-	 * A bias added to the computed filter width. A small negative bias can allow edges to remain smooth at 100% view scale,
-	 * whilst then being clean and sharp when scaled up to large sizes. Non-zero values add an additional instruction
-	 * so only use when needed.
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (UIMin = "-0.075", UIMax = "0", EditCondition = "bComputeFilterWidth"), Category = "Canvas")
-	float FilterWidthBias = 0.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (EditCondition = "!bComputeFilterWidth"), Category = "Canvas")
+	float FixedFilterWidth = 1.f;
 
 	/** Override the designer background for this asset. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (InlineEditConditionToggle), Category = "Canvas")

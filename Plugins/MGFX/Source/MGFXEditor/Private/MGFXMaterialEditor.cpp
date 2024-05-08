@@ -689,29 +689,29 @@ void FMGFXMaterialEditor::RegisterToolbar()
 TSharedRef<SDockTab> FMGFXMaterialEditor::SpawnTab_Canvas(const FSpawnTabArgs& Args)
 {
 	return SNew(SDockTab)
-	[
-		SAssignNew(CanvasWidget, SMGFXMaterialEditorCanvas)
-		.MGFXMaterialEditor(SharedThis(this))
-	];
+		[
+			SAssignNew(CanvasWidget, SMGFXMaterialEditorCanvas)
+			.MGFXMaterialEditor(SharedThis(this))
+		];
 }
 
 TSharedRef<SDockTab> FMGFXMaterialEditor::SpawnTab_Layers(const FSpawnTabArgs& Args)
 {
 	return SNew(SDockTab)
-	[
-		SAssignNew(LayersWidget, SMGFXMaterialEditorLayers)
-		.MGFXMaterialEditor(SharedThis(this))
-		.OnSelectionChanged(this, &FMGFXMaterialEditor::OnLayerSelectionChanged)
-		.OnLayersChanged(this, &FMGFXMaterialEditor::OnLayersChangedByLayersView)
-	];
+		[
+			SAssignNew(LayersWidget, SMGFXMaterialEditorLayers)
+			.MGFXMaterialEditor(SharedThis(this))
+			.OnSelectionChanged(this, &FMGFXMaterialEditor::OnLayerSelectionChanged)
+			.OnLayersChanged(this, &FMGFXMaterialEditor::OnLayersChangedByLayersView)
+		];
 }
 
 TSharedRef<SDockTab> FMGFXMaterialEditor::SpawnTab_Details(const FSpawnTabArgs& Args)
 {
 	return SNew(SDockTab)
-	[
-		DetailsView.ToSharedRef()
-	];
+		[
+			DetailsView.ToSharedRef()
+		];
 }
 
 void FMGFXMaterialEditor::OnMaterialAssetChanged()
@@ -784,53 +784,23 @@ void FMGFXMaterialEditor::Generate_AddUVsBoilerplate(FMGFXMaterialBuilder& Build
 
 	NodePos.X += GridSize * 15;
 
-	// compute common filter width to use for all shapes based on canvas resolution
-	UMaterialExpression* FilterWidthExp = nullptr;
-	// the output from the filter width expression to use, which may vary
-	FString FilterWidthOutput = FString();
+	// compute a reusable filter width based on canvas resolution
+	UMaterialExpression* FilterWidthExp;
 
 	if (MGFXMaterial->bComputeFilterWidth)
 	{
-		// create bias constant (even if its unused)
-		UMaterialExpressionConstant* FilterWidthBiasExp = Builder.Create<UMaterialExpressionConstant>(NodePos + FVector2D(0, GridSize * 8));
-		SET_PROP(FilterWidthBiasExp, R, MGFXMaterial->FilterWidthBias);
-
-		NodePos.X += GridSize * 15;
-
 		// create filter width func
 		UMaterialExpressionMaterialFunctionCall* FilterWidthFuncExp = Builder.CreateFunction(NodePos, FMGFXMaterialFunctions::GetVisual("FilterWidth"));
 		Builder.Connect(OutputRerouteExp, "", FilterWidthFuncExp, "");
-		Builder.Connect(FilterWidthBiasExp, "", FilterWidthFuncExp, "Bias");
-
-		// only use biased output if not zero, otherwise optimize out
-		if (!FMath::IsNearlyZero(MGFXMaterial->FilterWidthBias))
-		{
-			FilterWidthOutput = FString("Biased");
-		}
 
 		NodePos.X += GridSize * 15;
 
-		// apply filter width scale if not 1x
-		if (!FMath::IsNearlyEqual(MGFXMaterial->FilterWidthScale, 1.f))
-		{
-			UMaterialExpressionMultiply* FilterWidthScaleExp = Builder.Create<UMaterialExpressionMultiply>(NodePos);
-			Builder.Connect(FilterWidthFuncExp, FilterWidthOutput, FilterWidthScaleExp, "");
-			SET_PROP(FilterWidthScaleExp, ConstB, MGFXMaterial->FilterWidthScale);
-
-			NodePos.X += GridSize * 15;
-
-			FilterWidthExp = FilterWidthScaleExp;
-			FilterWidthOutput = "";
-		}
-		else
-		{
-			FilterWidthExp = FilterWidthFuncExp;
-		}
+		FilterWidthExp = FilterWidthFuncExp;
 	}
 	else
 	{
 		UMaterialExpressionConstant* FilterWidthConstExp = Builder.Create<UMaterialExpressionConstant>(NodePos);
-		SET_PROP(FilterWidthConstExp, R, MGFXMaterial->FilterWidthScale);
+		SET_PROP(FilterWidthConstExp, R, MGFXMaterial->FixedFilterWidth);
 
 		NodePos.X += GridSize * 15;
 
@@ -839,7 +809,7 @@ void FMGFXMaterialEditor::Generate_AddUVsBoilerplate(FMGFXMaterialBuilder& Build
 
 	// add filter width reroute
 	UMaterialExpressionNamedRerouteDeclaration* FilterWidthRerouteExp = Builder.CreateNamedReroute(NodePos, Reroute_CanvasFilterWidth);
-	Builder.Connect(FilterWidthExp, FilterWidthOutput, FilterWidthRerouteExp, "");
+	Builder.Connect(FilterWidthExp, FilterWidthRerouteExp);
 }
 
 void FMGFXMaterialEditor::Generate_Layers(FMGFXMaterialBuilder& Builder)
@@ -922,7 +892,7 @@ FMGFXMaterialLayerOutputs FMGFXMaterialEditor::Generate_Layer(FMGFXMaterialBuild
 	// recalculate filter width to use for these uvs if the SDF gradient can ever be scaled
 	const bool bNoOptimization = Layer->Transform.bAnimatable || MGFXMaterial->bAllAnimatable;
 	const bool bHasModifiedScale = !(Layer->Transform.Scale - FVector2f::One()).IsNearlyZero();
-	if (bNoOptimization || bHasModifiedScale)
+	if (GetMGFXMaterial()->bComputeFilterWidth && (bNoOptimization || bHasModifiedScale))
 	{
 		UMaterialExpressionMaterialFunctionCall* UVFilterFuncExp = Builder.CreateFunction(
 			NodePos + FVector2D(0, GridSize * 8), FMGFXMaterialFunctions::GetVisual("FilterWidth"));
