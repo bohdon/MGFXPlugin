@@ -17,6 +17,10 @@
 #include "UObject/PropertyAccessUtil.h"
 
 
+FMGFXMaterialBuilder::FMGFXMaterialBuilder()
+{
+}
+
 FMGFXMaterialBuilder::FMGFXMaterialBuilder(UMaterial* InMaterial)
 	: Material(InMaterial)
 {

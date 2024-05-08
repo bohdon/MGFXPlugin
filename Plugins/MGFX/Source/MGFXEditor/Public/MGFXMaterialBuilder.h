@@ -24,10 +24,12 @@ class UMaterialExpressionScalarParameter;
  */
 struct MGFXEDITOR_API FMGFXMaterialBuilder
 {
+	FMGFXMaterialBuilder();
+
 	FMGFXMaterialBuilder(UMaterial* InMaterial);
 
 	/** The material being edited. */
-	TObjectPtr<UMaterial> Material;
+	TObjectPtr<UMaterial> Material = nullptr;
 
 	/** Create a new material expression. */
 	UMaterialExpression* Create(TSubclassOf<UMaterialExpression> ExpressionClass, const FVector2D& NodePos) const;
