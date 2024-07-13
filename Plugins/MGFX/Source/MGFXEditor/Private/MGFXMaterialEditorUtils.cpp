@@ -40,7 +40,7 @@ FString FMGFXMaterialEditorUtils::MakeUniqueLayerName(const FString& Name, const
 		return Name;
 	}
 
-	TArray<TObjectPtr<UMGFXMaterialLayer>> AllLayers;
+	TArray<UMGFXMaterialLayer*> AllLayers;
 	InMaterial->GetAllLayers(AllLayers);
 
 	FString NewName = Name;

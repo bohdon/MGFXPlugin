@@ -18,11 +18,11 @@ UMGFXMaterial::UMGFXMaterial()
 	DesignerBackground = FSlateColorBrush(FLinearColor(0.005f, 0.005f, 0.005f));
 }
 
-void UMGFXMaterial::GetAllLayers(TArray<TObjectPtr<UMGFXMaterialLayer>>& OutLayers) const
+void UMGFXMaterial::GetAllLayers(TArray<UMGFXMaterialLayer*>& OutLayers) const
 {
 	OutLayers.Reset();
 
-	for (TObjectPtr<UMGFXMaterialLayer> Layer : RootLayers)
+	for (const TObjectPtr<UMGFXMaterialLayer>& Layer : RootLayers)
 	{
 		OutLayers.Add(Layer);
 		Layer->GetAllLayers(OutLayers);
@@ -35,9 +35,9 @@ void UMGFXMaterial::PostLoad()
 
 #if WITH_EDITOR
 	// fix up incorrect outers
-	TArray<TObjectPtr<UMGFXMaterialLayer>> AllLayers;
+	TArray<UMGFXMaterialLayer*> AllLayers;
 	GetAllLayers(AllLayers);
-	for (TObjectPtr<UMGFXMaterialLayer> Layer : AllLayers)
+	for (UMGFXMaterialLayer* Layer : AllLayers)
 	{
 		if (Layer->GetOuter() != this)
 		{

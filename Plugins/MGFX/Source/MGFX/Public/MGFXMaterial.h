@@ -78,7 +78,7 @@ public:
 	TArray<TObjectPtr<UMGFXMaterialLayer>> RootLayers;
 
 	/** Return a flat list of all layers in the material. */
-	void GetAllLayers(TArray<TObjectPtr<UMGFXMaterialLayer>>& OutLayers) const;
+	void GetAllLayers(TArray<UMGFXMaterialLayer*>& OutLayers) const;
 
 	// IMGFXMaterialLayerParentInterface
 	virtual const TArray<TObjectPtr<UMGFXMaterialLayer>>& GetLayers() const override { return RootLayers; }
