@@ -26,10 +26,25 @@ struct MGFXEDITOR_API FMGFXMaterialBuilder
 {
 	FMGFXMaterialBuilder();
 
-	FMGFXMaterialBuilder(UMaterial* InMaterial);
+	FMGFXMaterialBuilder(UMaterial* InMaterial, bool bInBlockPostEditChange);
 
-	/** The material being edited. */
-	TObjectPtr<UMaterial> Material = nullptr;
+	~FMGFXMaterialBuilder();
+
+	TObjectPtr<UMaterial> GetMaterial() const { return Material; }
+
+	/**
+	 * Set the material that will be modified.
+	 * If bInBlockPostEditChange is true, temporarily make the material a preview material, so that
+	 * If bInBlockPostEditChange is true, temporarily make the material a preview material, so that
+	 * material expression updates don't trigger PostEditChange on the material itself.
+	 */
+	void SetMaterial(UMaterial* InMaterial, bool bInBlockPostEditChange);
+
+	/**
+	 * Reset the builder, clearing the material reference and restoring its preview state.
+	 * Should be called when finished building.
+	 */
+	void Reset();
 
 	/** Create a new material expression. */
 	UMaterialExpression* Create(TSubclassOf<UMaterialExpression> ExpressionClass, const FVector2D& NodePos) const;
@@ -112,4 +127,14 @@ struct MGFXEDITOR_API FMGFXMaterialBuilder
 
 	/** Delete all expressions in the material. */
 	void DeleteAll();
+
+protected:
+	/** When true, prevent the material from being recompiled in post edit change property calls. */
+	bool bBlockPostEditChange = false;
+
+	/** The material being edited. */
+	TObjectPtr<UMaterial> Material = nullptr;
+
+	/** The original value of bIsPreviewMaterial for the material before it was modified. */
+	bool bWasPreviewMaterial = false;
 };

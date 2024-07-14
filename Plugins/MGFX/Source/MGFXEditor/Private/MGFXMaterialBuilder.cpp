@@ -21,9 +21,46 @@ FMGFXMaterialBuilder::FMGFXMaterialBuilder()
 {
 }
 
-FMGFXMaterialBuilder::FMGFXMaterialBuilder(UMaterial* InMaterial)
-	: Material(InMaterial)
+FMGFXMaterialBuilder::FMGFXMaterialBuilder(UMaterial* InMaterial, bool bInBlockPostEditChange)
 {
+	SetMaterial(InMaterial, bInBlockPostEditChange);
+}
+
+FMGFXMaterialBuilder::~FMGFXMaterialBuilder()
+{
+	Reset();
+}
+
+void FMGFXMaterialBuilder::SetMaterial(UMaterial* InMaterial, bool bInBlockPostEditChange)
+{
+	if (Material)
+	{
+		Reset();
+	}
+
+	bBlockPostEditChange = bInBlockPostEditChange;
+	Material = InMaterial;
+
+	if (bBlockPostEditChange)
+	{
+		// when building, we don't want to recompile after every property change,
+		// bypass this by marking the material as a preview, then restore the setting later
+		bWasPreviewMaterial = InMaterial->bIsPreviewMaterial;
+		Material->bIsPreviewMaterial = true;
+		Material->PreEditChange(nullptr);
+	}
+}
+
+void FMGFXMaterialBuilder::Reset()
+{
+	if (Material && bBlockPostEditChange)
+	{
+		Material->bIsPreviewMaterial = bWasPreviewMaterial;
+		Material->PostEditChange();
+	}
+
+	Material = nullptr;
+	bWasPreviewMaterial = false;
 }
 
 UMaterialExpression* FMGFXMaterialBuilder::Create(TSubclassOf<UMaterialExpression> ExpressionClass, const FVector2D& NodePos) const
@@ -201,7 +238,7 @@ bool FMGFXMaterialBuilder::Connect(UMaterialExpression* From, UMaterialExpressio
 
 bool FMGFXMaterialBuilder::ConnectProperty(UMaterialExpression* From, const FString& FromPin, const EMaterialProperty& Property) const
 {
-	return UMaterialEditingLibrary::ConnectMaterialProperty(From, FString(FromPin), Property);
+	return UMaterialEditingLibrary::ConnectMaterialProperty(From, FromPin, Property);
 }
 
 void FMGFXMaterialBuilder::ConfigureParameter(UMaterialExpressionParameter* ParameterExp, FName ParameterName, FName Group, int32 SortPriority) const

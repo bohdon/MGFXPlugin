@@ -61,7 +61,7 @@ public:
 	FLinearColor CommentColor = FLinearColor(0.06f, 0.02f, 0.02f);
 
 	/** Generate the material. */
-	void Generate(UMGFXMaterial* InMGFXMaterial, UMaterial* OutputMaterial);
+	void Generate(UMGFXMaterial* InMGFXMaterial, UMaterial* OutputMaterial, bool bRecompile = true);
 
 	/** Add a generated warning comment to prevent user modification. */
 	void AddWarningComment();
@@ -120,6 +120,8 @@ public:
 	UMaterialExpression* GenerateShapeStroke(const UMGFXMaterialShapeStroke* Stroke,
 	                                         UMaterialExpression* ShapeExp, UMaterialExpressionNamedRerouteDeclaration* FilterWidthExp,
 	                                         const FString& ParamPrefix, const FName& ParamGroup);
+
+	FMGFXMaterialBuilder& GetBuilder() { return Builder; }
 
 protected:
 	/** The MGFXMaterial that is being used to generate a material. */

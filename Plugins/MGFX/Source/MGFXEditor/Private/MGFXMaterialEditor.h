@@ -6,13 +6,16 @@
 #include "EditorUndoClient.h"
 #include "IMGFXMaterialEditor.h"
 #include "MGFXMaterialTypes.h"
+#include "MaterialEditor/PreviewMaterial.h"
 #include "Misc/NotifyHook.h"
 
 class FMGFXMaterialGenerator;
+class IMaterialEditor;
 class SMGFXMaterialEditorCanvas;
 class SMGFXMaterialEditorLayers;
 class UMGFXMaterial;
 class UMGFXMaterialLayer;
+class UPreviewMaterial;
 
 #define GENERATOR_REFACTOR 1
 
@@ -152,6 +155,12 @@ private:
 
 	/** Create or recreate the preview material instance dynamic. */
 	void UpdatePreviewMaterial();
+
+	/** Find an open material editor for a material. */
+	static IMaterialEditor* FindMaterialEditor(UMaterial* Material);
+
+	/** Return the duplicated preview material that a material editor is displaying. */
+	static UPreviewMaterial* GetMaterialEditorPreviewMaterial(IMaterialEditor* MaterialEditor);
 
 	void DeleteSelectedLayers();
 	bool CanDeleteSelectedLayers();

@@ -19,10 +19,13 @@
 #include "Factories/MaterialFactoryNew.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "HAL/PlatformApplicationMisc.h"
+#include "MaterialEditor/PreviewMaterial.h"
+#include "MaterialGraph/MaterialGraph.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Misc/TransactionObjectEvent.h"
 #include "Shapes/MGFXMaterialShape.h"
 #include "Shapes/MGFXMaterialShapeVisual.h"
+#include "Toolkits/AssetEditorToolkitMenuContext.h"
 #include "UObject/PropertyAccessUtil.h"
 #include "Widgets/Docking/SDockTab.h"
 
@@ -166,6 +169,8 @@ UMaterial* FMGFXMaterialEditor::GetGeneratedMaterial() const
 
 void FMGFXMaterialEditor::RegenerateMaterial()
 {
+	SCOPED_NAMED_EVENT(FMGFXMaterialEditor_RegenerateMaterial, FColor::Green);
+
 	UMaterial* Material = GetGeneratedMaterial();
 	if (!Material)
 	{
@@ -178,9 +183,9 @@ void FMGFXMaterialEditor::RegenerateMaterial()
 		}
 	}
 
-	// TODO: close material editor, or find a way to refresh it, could just copy (manual duplicate) to the preview material?
-
-	const FScopedTransaction Transaction(LOCTEXT("RegenerateMaterial", "MGFX Material Editor: Regenerate Material"));
+	// create a transaction to group changes, but don't register it,
+	// undo/redo for MGFXMaterial changes should not be interrupted by material updates
+	const FScopedTransaction Transaction(LOCTEXT("RegenerateMaterial", "MGFX Material Editor: Regenerate Material"), false);
 
 	Material->Modify();
 
@@ -188,14 +193,28 @@ void FMGFXMaterialEditor::RegenerateMaterial()
 	Material->MaterialDomain = MGFXMaterial->MaterialDomain;
 	Material->BlendMode = MGFXMaterial->BlendMode;
 
-	// generate the UMaterial
-	Generator->Generate(MGFXMaterial, Material);
+	Generator->Generate(MGFXMaterial, Material, true);
 
 	UpdatePreviewMaterial();
 
 	// TODO: use events to keep this up to date
 	// update canvas artboard
 	CanvasWidget->UpdateArtboardSize();
+
+	// if MaterialEditor is open, update its preview material as well
+	if (IMaterialEditor* MaterialEditor = FindMaterialEditor(Material))
+	{
+		UPreviewMaterial* EditorPreviewMaterial = GetMaterialEditorPreviewMaterial(MaterialEditor);
+		check(EditorPreviewMaterial);
+
+		// could try copying the material expressions, but generating seems to be faster
+		Generator->Generate(MGFXMaterial, EditorPreviewMaterial, false);
+
+		EditorPreviewMaterial->MaterialGraph->RebuildGraph();
+
+		// notify the editor, so it can recompile and display stats
+		MaterialEditor->NotifyExternalMaterialChange();
+	}
 }
 
 void FMGFXMaterialEditor::ToggleAutoRegenerate()
@@ -509,9 +528,11 @@ void FMGFXMaterialEditor::SetMaterialScalarParameterValue(FName PropertyName, fl
 	}
 	else
 	{
-		FMGFXMaterialBuilder Builder(GetGeneratedMaterial());
-		Builder.Material->Modify();
-		Builder.SetScalarParameterValue(PropertyName, Value);
+		if (UMaterial* Material = GetGeneratedMaterial())
+		{
+			FMGFXMaterialBuilder Builder(Material, false);
+			Builder.SetScalarParameterValue(PropertyName, Value);
+		}
 	}
 }
 
@@ -523,9 +544,11 @@ void FMGFXMaterialEditor::SetMaterialVectorParameterValue(FName PropertyName, FL
 	}
 	else
 	{
-		FMGFXMaterialBuilder Builder(GetGeneratedMaterial());
-		Builder.Material->Modify();
-		Builder.SetVectorParameterValue(PropertyName, Value);
+		if (UMaterial* Material = GetGeneratedMaterial())
+		{
+			FMGFXMaterialBuilder Builder(Material, false);
+			Builder.SetVectorParameterValue(PropertyName, Value);
+		}
 	}
 }
 
@@ -682,6 +705,43 @@ void FMGFXMaterialEditor::UpdatePreviewMaterial()
 	{
 		PreviewMaterial->ClearParameterValues();
 	}
+}
+
+IMaterialEditor* FMGFXMaterialEditor::FindMaterialEditor(UMaterial* Material)
+{
+	UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+	IAssetEditorInstance* AssetEditorInstance = AssetEditorSubsystem->FindEditorForAsset(Material, false);
+	if (!AssetEditorInstance || AssetEditorInstance->GetEditorName() != "MaterialEditor")
+	{
+		return nullptr;
+	}
+
+	return static_cast<IMaterialEditor*>(AssetEditorInstance);
+}
+
+UPreviewMaterial* FMGFXMaterialEditor::GetMaterialEditorPreviewMaterial(IMaterialEditor* MaterialEditor)
+{
+	if (!MaterialEditor)
+	{
+		return nullptr;
+	}
+
+	// only a toolkit menu context can access the editing objects of a toolkit
+	UAssetEditorToolkitMenuContext* const EditorContext = NewObject<UAssetEditorToolkitMenuContext>();
+	EditorContext->Toolkit = MaterialEditor->AsWeak();
+
+	// search for the material (not the original one) from the list of EditingObjects
+	TArray<UObject*> MaterialEditingObjects = EditorContext->GetEditingObjects();
+	for (UObject* EditingObject : MaterialEditingObjects)
+	{
+		if (UPreviewMaterial* EditingMaterial = Cast<UPreviewMaterial>(EditingObject))
+		{
+			// assume this is the right material (there should be only 1 other)
+			return EditingMaterial;
+		}
+	}
+
+	return nullptr;
 }
 
 void FMGFXMaterialEditor::DeleteSelectedLayers()

@@ -37,13 +37,15 @@ FMGFXMaterialGenerator::FMGFXMaterialGenerator()
 {
 }
 
-void FMGFXMaterialGenerator::Generate(UMGFXMaterial* InMGFXMaterial, UMaterial* OutputMaterial)
+void FMGFXMaterialGenerator::Generate(UMGFXMaterial* InMGFXMaterial, UMaterial* OutputMaterial, bool bRecompile)
 {
+	SCOPED_NAMED_EVENT(FMGFXMaterialGenerator_Generate, FColor::Green);
+
 	check(InMGFXMaterial);
 	check(OutputMaterial);
 
 	MGFXMaterial = InMGFXMaterial;
-	Builder.Material = OutputMaterial;
+	Builder.SetMaterial(OutputMaterial, true);
 	Pos = FVector2D::ZeroVector;
 
 	Builder.DeleteAll();
@@ -75,11 +77,15 @@ void FMGFXMaterialGenerator::Generate(UMGFXMaterial* InMGFXMaterial, UMaterial* 
 		Builder.ConnectProperty(OutputUsageExp, "", MGFXMaterial->OutputProperty);
 	}
 
-	Builder.RecompileMaterial();
+	if (bRecompile)
+	{
+		SCOPED_NAMED_EVENT(FMGFXMaterialGenerator_Generate_Recompile, FColor::Green);
+		Builder.RecompileMaterial();
+	}
 
 	// clear material references when finished
 	MGFXMaterial = nullptr;
-	Builder.Material = nullptr;
+	Builder.Reset();
 }
 
 void FMGFXMaterialGenerator::AddWarningComment()
