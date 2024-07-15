@@ -42,7 +42,6 @@ const FName FMGFXMaterialEditor::DetailsTabId(TEXT("MGFXMaterialEditorDetailsTab
 
 
 FMGFXMaterialEditor::FMGFXMaterialEditor()
-	: bAutoRegenerate(true)
 {
 }
 
@@ -58,7 +57,7 @@ void FMGFXMaterialEditor::InitMGFXMaterialEditor(const EToolkitMode::Type Mode,
 	check(InMGFXMaterial);
 
 	MGFXMaterial = InMGFXMaterial;
-	UpdatePreviewMaterial();
+	CreatePreviewMaterials();
 
 	Generator = MakeShared<FMGFXMaterialGenerator>();
 
@@ -116,6 +115,7 @@ void FMGFXMaterialEditor::InitMGFXMaterialEditor(const EToolkitMode::Type Mode,
 
 	RegisterToolbar();
 	RegenerateMenusAndToolbars();
+	RegeneratePreviewMaterial();
 }
 
 FName FMGFXMaterialEditor::GetToolkitFName() const
@@ -161,20 +161,43 @@ void FMGFXMaterialEditor::RegisterTabSpawners(const TSharedRef<FTabManager>& InT
 	            .SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"));
 }
 
-UMaterial* FMGFXMaterialEditor::GetGeneratedMaterial() const
+UMaterial* FMGFXMaterialEditor::GetTargetMaterial() const
 {
 	check(MGFXMaterial);
 	return MGFXMaterial->Material;
 }
 
-void FMGFXMaterialEditor::RegenerateMaterial()
+void FMGFXMaterialEditor::RegeneratePreviewMaterial()
+{
+	PreviewMaterial->Modify();
+	Generator->Generate(MGFXMaterial, PreviewMaterial, true, true);
+
+	// any interactive parameter changes should be cleared now
+	PreviewMID->ClearParameterValues();
+
+	// TODO: use events to keep this up to date
+	// update canvas artboard
+	CanvasWidget->UpdateArtboardSize();
+}
+
+void FMGFXMaterialEditor::Apply()
+{
+	RegeneratePreviewMaterial();
+	RegenerateTargetMaterial();
+}
+
+void FMGFXMaterialEditor::RegenerateTargetMaterial()
 {
 	SCOPED_NAMED_EVENT(FMGFXMaterialEditor_RegenerateMaterial, FColor::Green);
 
-	UMaterial* Material = GetGeneratedMaterial();
+	// create a transaction to group changes, but don't register it,
+	// undo/redo for MGFXMaterial changes should not be interrupted by material updates
+	const FScopedTransaction Transaction(LOCTEXT("RegenerateMaterial", "Apply MGFX Material"), false);
+
+	UMaterial* Material = GetTargetMaterial();
 	if (!Material)
 	{
-		Material = CreateMaterialAsset();
+		Material = CreateTargetMaterialAsset();
 
 		if (!Material)
 		{
@@ -183,24 +206,6 @@ void FMGFXMaterialEditor::RegenerateMaterial()
 		}
 	}
 
-	// create a transaction to group changes, but don't register it,
-	// undo/redo for MGFXMaterial changes should not be interrupted by material updates
-	const FScopedTransaction Transaction(LOCTEXT("RegenerateMaterial", "MGFX Material Editor: Regenerate Material"), false);
-
-	Material->Modify();
-
-	// set material properties
-	Material->MaterialDomain = MGFXMaterial->MaterialDomain;
-	Material->BlendMode = MGFXMaterial->BlendMode;
-
-	Generator->Generate(MGFXMaterial, Material, true);
-
-	UpdatePreviewMaterial();
-
-	// TODO: use events to keep this up to date
-	// update canvas artboard
-	CanvasWidget->UpdateArtboardSize();
-
 	// if MaterialEditor is open, update its preview material as well
 	if (IMaterialEditor* MaterialEditor = FindMaterialEditor(Material))
 	{
@@ -208,21 +213,20 @@ void FMGFXMaterialEditor::RegenerateMaterial()
 		check(EditorPreviewMaterial);
 
 		// could try copying the material expressions, but generating seems to be faster
-		Generator->Generate(MGFXMaterial, EditorPreviewMaterial, false);
+		EditorPreviewMaterial->Modify();
+		Generator->Generate(MGFXMaterial, EditorPreviewMaterial, true, false);
 
 		EditorPreviewMaterial->MaterialGraph->RebuildGraph();
 
 		// notify the editor, so it can recompile and display stats
 		MaterialEditor->NotifyExternalMaterialChange();
 	}
+
+	Material->Modify();
+	Generator->Generate(MGFXMaterial, Material, true, false);
 }
 
-void FMGFXMaterialEditor::ToggleAutoRegenerate()
-{
-	bAutoRegenerate = !bAutoRegenerate;
-}
-
-UMaterial* FMGFXMaterialEditor::CreateMaterialAsset()
+UMaterial* FMGFXMaterialEditor::CreateTargetMaterialAsset()
 {
 	if (!MGFXMaterial->Material)
 	{
@@ -338,7 +342,7 @@ bool FMGFXMaterialEditor::IsDetailsRowVisible(FName InRowName, FName InParentNam
 
 void FMGFXMaterialEditor::OnLayersChanged()
 {
-	RegenerateMaterial();
+	RegeneratePreviewMaterial();
 
 	OnLayersChangedEvent.Broadcast();
 }
@@ -352,6 +356,7 @@ void FMGFXMaterialEditor::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	Collector.AddReferencedObject(MGFXMaterial);
 	Collector.AddReferencedObject(PreviewMaterial);
+	Collector.AddReferencedObject(PreviewMID);
 }
 
 void FMGFXMaterialEditor::NotifyPreChange(FProperty* PropertyAboutToChange)
@@ -375,7 +380,8 @@ void FMGFXMaterialEditor::NotifyPostChange(const FPropertyChangedEvent& Property
 		return;
 	}
 	else if (MemberPropertyName == GET_MEMBER_NAME_CHECKED(UMGFXMaterial, DesignerBackground) ||
-		MemberPropertyName == GET_MEMBER_NAME_CHECKED(UMGFXMaterial, bOverrideDesignerBackground))
+		MemberPropertyName == GET_MEMBER_NAME_CHECKED(UMGFXMaterial, bOverrideDesignerBackground) ||
+		MemberPropertyName == GET_MEMBER_NAME_CHECKED(UMGFXMaterial, bAllAnimatable))
 	{
 		return;
 	}
@@ -383,12 +389,12 @@ void FMGFXMaterialEditor::NotifyPostChange(const FPropertyChangedEvent& Property
 	// handle material parameter properties
 
 	// we could set the default values on the Material's expressions here, and it would update fairly responsively,
-	// but it's not perfect, and flickering occurs. Instead, we modify the MID which has perfect responsiveness, and any
-	// temporary modifications will be correctly replaced once the material is generated.
+	// but it's not perfect, and flickering occurs. Instead, we modify the MID which has perfect responsiveness
+	// during Interactive property changes and then update the Material during ValueSet changes.
 
-	// this unfortunately only works if the params are not optimized out, so the intended workflow is to design without
-	// optimizations enabled (all params exposed via MID), then enable optimizations when finished.
+	// the preview material is always generated without optimization, so all params will be available
 	const bool bInteractive = PropertyChangedEvent.ChangeType == EPropertyChangeType::Interactive;
+	bool bIsParameterChange = false;
 
 	for (int32 Idx = 0; Idx < PropertyChangedEvent.GetNumObjectsBeingEdited(); ++Idx)
 	{
@@ -408,6 +414,7 @@ void FMGFXMaterialEditor::NotifyPostChange(const FPropertyChangedEvent& Property
 						// setting Location
 						SetMaterialScalarParameterValue(FName(ParamPrefix + Generator->Param_LocationX), EditedLayer->Transform.Location.X, bInteractive);
 						SetMaterialScalarParameterValue(FName(ParamPrefix + Generator->Param_LocationY), EditedLayer->Transform.Location.Y, bInteractive);
+						bIsParameterChange = true;
 					}
 					else if (PropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Rotation))
 					{
@@ -416,12 +423,14 @@ void FMGFXMaterialEditor::NotifyPostChange(const FPropertyChangedEvent& Property
 						const FString ParamName = Generator->Param_Rotation;
 
 						SetMaterialScalarParameterValue(FName(ParamPrefix + ParamName), NewValue, bInteractive);
+						bIsParameterChange = true;
 					}
 					else if (PropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Scale))
 					{
 						// setting Scale
 						SetMaterialScalarParameterValue(FName(ParamPrefix + Generator->Param_ScaleX), EditedLayer->Transform.Scale.X, bInteractive);
 						SetMaterialScalarParameterValue(FName(ParamPrefix + Generator->Param_ScaleY), EditedLayer->Transform.Scale.Y, bInteractive);
+						bIsParameterChange = true;
 					}
 					else if (ParentPropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Location))
 					{
@@ -431,6 +440,7 @@ void FMGFXMaterialEditor::NotifyPostChange(const FPropertyChangedEvent& Property
 						const FString ParamName = bIsX ? Generator->Param_LocationX : Generator->Param_LocationY;
 
 						SetMaterialScalarParameterValue(FName(ParamPrefix + ParamName), NewValue, bInteractive);
+						bIsParameterChange = true;
 					}
 					else if (ParentPropertyName == GET_MEMBER_NAME_CHECKED(FMGFXShapeTransform2D, Scale))
 					{
@@ -440,6 +450,7 @@ void FMGFXMaterialEditor::NotifyPostChange(const FPropertyChangedEvent& Property
 						const FString ParamName = bIsX ? Generator->Param_ScaleX : Generator->Param_ScaleY;
 
 						SetMaterialScalarParameterValue(FName(ParamPrefix + ParamName), NewValue, bInteractive);
+						bIsParameterChange = true;
 					}
 				}
 			}
@@ -460,14 +471,17 @@ void FMGFXMaterialEditor::NotifyPostChange(const FPropertyChangedEvent& Property
 						{
 						case EMGFXMaterialShapeInputType::Float:
 							SetMaterialScalarParameterValue(FName(ParamPrefix + Input.Name), Input.Value.R, bInteractive);
+							bIsParameterChange = true;
 							break;
 						case EMGFXMaterialShapeInputType::Vector2:
 							SetMaterialScalarParameterValue(FName(ParamPrefix + Input.Name + "X"), Input.Value.R, bInteractive);
 							SetMaterialScalarParameterValue(FName(ParamPrefix + Input.Name + "Y"), Input.Value.G, bInteractive);
+							bIsParameterChange = true;
 							break;
 						case EMGFXMaterialShapeInputType::Vector3:
 						case EMGFXMaterialShapeInputType::Vector4:
 							SetMaterialVectorParameterValue(FName(ParamPrefix + Input.Name), Input.Value, bInteractive);
+							bIsParameterChange = true;
 							break;
 						default: ;
 						}
@@ -485,6 +499,7 @@ void FMGFXMaterialEditor::NotifyPostChange(const FPropertyChangedEvent& Property
 				if (PropertyName == GET_MEMBER_NAME_CHECKED(UMGFXMaterialShapeFill, Color))
 				{
 					SetMaterialVectorParameterValue(FName(ParamPrefix + "Color"), EditedFill->Color, bInteractive);
+					bIsParameterChange = true;
 				}
 			}
 		}
@@ -498,10 +513,12 @@ void FMGFXMaterialEditor::NotifyPostChange(const FPropertyChangedEvent& Property
 				if (PropertyName == GET_MEMBER_NAME_CHECKED(UMGFXMaterialShapeStroke, Color))
 				{
 					SetMaterialVectorParameterValue(FName(ParamPrefix + "Color"), EditedStroke->Color, bInteractive);
+					bIsParameterChange = true;
 				}
 				else if (PropertyName == GET_MEMBER_NAME_CHECKED(UMGFXMaterialShapeStroke, StrokeWidth))
 				{
 					SetMaterialScalarParameterValue(FName(ParamPrefix + "StrokeWidth"), EditedStroke->StrokeWidth, bInteractive);
+					bIsParameterChange = true;
 				}
 			}
 		}
@@ -509,47 +526,26 @@ void FMGFXMaterialEditor::NotifyPostChange(const FPropertyChangedEvent& Property
 
 	if (!bInteractive)
 	{
-		// any interactive preview changes should be cleared now
-		UpdatePreviewMaterial();
-	}
-
-	if (bAutoRegenerate && PropertyChangedEvent.ChangeType == EPropertyChangeType::ValueSet)
-	{
 		// TODO: more accurate filtering of properties that should cause regenerate
-		RegenerateMaterial();
-	}
-}
+		const bool bShouldRegenerate = !bIsParameterChange;
 
-void FMGFXMaterialEditor::SetMaterialScalarParameterValue(FName PropertyName, float Value, bool bInteractive) const
-{
-	if (bInteractive)
-	{
-		PreviewMaterial->SetScalarParameterValue(PropertyName, Value);
-	}
-	else
-	{
-		if (UMaterial* Material = GetGeneratedMaterial())
+		if (bShouldRegenerate)
 		{
-			FMGFXMaterialBuilder Builder(Material, false);
-			Builder.SetScalarParameterValue(PropertyName, Value);
+			RegeneratePreviewMaterial();
 		}
 	}
 }
 
-void FMGFXMaterialEditor::SetMaterialVectorParameterValue(FName PropertyName, FLinearColor Value, bool bInteractive) const
+void FMGFXMaterialEditor::SetMaterialScalarParameterValue(FName ParameterName, float Value, bool bInteractive) const
 {
-	if (bInteractive)
-	{
-		PreviewMaterial->SetVectorParameterValue(PropertyName, Value);
-	}
-	else
-	{
-		if (UMaterial* Material = GetGeneratedMaterial())
-		{
-			FMGFXMaterialBuilder Builder(Material, false);
-			Builder.SetVectorParameterValue(PropertyName, Value);
-		}
-	}
+	PreviewMID->Modify();
+	PreviewMID->SetScalarParameterValue(ParameterName, Value);
+}
+
+void FMGFXMaterialEditor::SetMaterialVectorParameterValue(FName ParameterName, FLinearColor Value, bool bInteractive) const
+{
+	PreviewMID->Modify();
+	PreviewMID->SetVectorParameterValue(ParameterName, Value);
 }
 
 bool FMGFXMaterialEditor::MatchesContext(const FTransactionContext& InContext,
@@ -583,12 +579,11 @@ bool FMGFXMaterialEditor::MatchesContext(const FTransactionContext& InContext,
 void FMGFXMaterialEditor::PostUndo(bool bSuccess)
 {
 	OnLayersChangedEvent.Broadcast();
-	UpdatePreviewMaterial();
 }
 
 void FMGFXMaterialEditor::PostRedo(bool bSuccess)
 {
-	PostUndo(bSuccess);
+	OnLayersChangedEvent.Broadcast();
 }
 
 void FMGFXMaterialEditor::BindCommands()
@@ -597,14 +592,8 @@ void FMGFXMaterialEditor::BindCommands()
 	const TSharedRef<FUICommandList>& UICommandList = GetToolkitCommands();
 
 	UICommandList->MapAction(
-		Commands.RegenerateMaterial,
-		FExecuteAction::CreateSP(this, &FMGFXMaterialEditor::RegenerateMaterial));
-
-	UICommandList->MapAction(
-		Commands.ToggleAutoRegenerate,
-		FExecuteAction::CreateSP(this, &FMGFXMaterialEditor::ToggleAutoRegenerate),
-		FCanExecuteAction(),
-		FIsActionChecked::CreateSP(this, &FMGFXMaterialEditor::IsAutoRegenerateEnabled));
+		Commands.Apply,
+		FExecuteAction::CreateSP(this, &FMGFXMaterialEditor::Apply));
 
 	UICommandList->MapAction(
 		FGenericCommands::Get().Delete,
@@ -651,8 +640,7 @@ void FMGFXMaterialEditor::RegisterToolbar()
 	const FToolMenuInsert InsertAfterAssetSection("Asset", EToolMenuInsertType::After);
 	{
 		FToolMenuSection& Section = ToolBar->AddSection("MGFXToolbar", TAttribute<FText>(), InsertAfterAssetSection);
-		Section.AddEntry(FToolMenuEntry::InitToolBarButton(MGFXEditorCommands.RegenerateMaterial));
-		Section.AddEntry(FToolMenuEntry::InitToolBarButton(MGFXEditorCommands.ToggleAutoRegenerate));
+		Section.AddEntry(FToolMenuEntry::InitToolBarButton(MGFXEditorCommands.Apply));
 	}
 }
 
@@ -688,23 +676,28 @@ TSharedRef<SDockTab> FMGFXMaterialEditor::SpawnTab_Details(const FSpawnTabArgs& 
 void FMGFXMaterialEditor::OnMaterialAssetChanged()
 {
 	OnMaterialChangedEvent.Broadcast(MGFXMaterial->Material);
-
-	UpdatePreviewMaterial();
 }
 
-void FMGFXMaterialEditor::UpdatePreviewMaterial()
+void FMGFXMaterialEditor::CreatePreviewMaterials()
 {
-	// create if it doesn't already exist
-	if (!PreviewMaterial && MGFXMaterial->Material)
-	{
-		PreviewMaterial = UMaterialInstanceDynamic::Create(MGFXMaterial->Material, nullptr);
-		OnPreviewMaterialChangedEvent.Broadcast(PreviewMaterial);
-	}
-	// reset values
-	if (PreviewMaterial)
-	{
-		PreviewMaterial->ClearParameterValues();
-	}
+	UMaterialFactoryNew* MaterialFactory = NewObject<UMaterialFactoryNew>();
+	check(MaterialFactory);
+
+	PreviewMaterial = Cast<UPreviewMaterial>(MaterialFactory->FactoryCreateNew(
+		UPreviewMaterial::StaticClass(),
+		GetTransientPackage(),
+		NAME_None,
+		RF_Transactional | RF_Transient,
+		nullptr,
+		GWarn
+	));
+
+	PreviewMaterial->bIsPreviewMaterial = true;
+
+	// create an MID of the preview for interactive parameter changes
+	PreviewMID = UMaterialInstanceDynamic::Create(PreviewMaterial, nullptr);
+	PreviewMID->SetFlags(RF_Transactional | RF_Transient);
+	OnPreviewMaterialChangedEvent.Broadcast(PreviewMID);
 }
 
 IMaterialEditor* FMGFXMaterialEditor::FindMaterialEditor(UMaterial* Material)

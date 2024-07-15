@@ -37,7 +37,7 @@ FMGFXMaterialGenerator::FMGFXMaterialGenerator()
 {
 }
 
-void FMGFXMaterialGenerator::Generate(UMGFXMaterial* InMGFXMaterial, UMaterial* OutputMaterial, bool bRecompile)
+void FMGFXMaterialGenerator::Generate(UMGFXMaterial* InMGFXMaterial, UMaterial* OutputMaterial, bool bRecompile, bool bInIsPreviewMaterial)
 {
 	SCOPED_NAMED_EVENT(FMGFXMaterialGenerator_Generate, FColor::Green);
 
@@ -45,13 +45,18 @@ void FMGFXMaterialGenerator::Generate(UMGFXMaterial* InMGFXMaterial, UMaterial* 
 	check(OutputMaterial);
 
 	MGFXMaterial = InMGFXMaterial;
+	bIsPreviewMaterial = bInIsPreviewMaterial;
 	Builder.SetMaterial(OutputMaterial, true);
 	Pos = FVector2D::ZeroVector;
+
+	OutputMaterial->MaterialDomain = MGFXMaterial->MaterialDomain;
+	OutputMaterial->BlendMode = MGFXMaterial->BlendMode;
 
 	Builder.DeleteAll();
 
 	AddWarningComment();
 	AddUVsBoilerplate();
+
 	GenerateLayers();
 
 	// build final output
@@ -233,7 +238,7 @@ FMGFXMaterialLayerOutputs FMGFXMaterialGenerator::GenerateLayer(const UMGFXMater
 	}
 
 	// recalculate filter width to use for these uvs if the SDF gradient can ever be scaled
-	const bool bNoOptimization = Layer->Transform.bAnimatable || MGFXMaterial->bAllAnimatable;
+	const bool bNoOptimization = Layer->Transform.bAnimatable || MGFXMaterial->bAllAnimatable || bIsPreviewMaterial;
 	const bool bHasModifiedScale = !(Layer->Transform.Scale - FVector2f::One()).IsNearlyZero();
 	if (MGFXMaterial->bComputeFilterWidth && (bNoOptimization || bHasModifiedScale))
 	{
@@ -329,7 +334,7 @@ UMaterialExpression* FMGFXMaterialGenerator::GenerateTransformUVs(const FMGFXSha
 	// temporary offset used to simplify next node positioning
 	FVector2D NodePosOffset = FVector2D::Zero();
 
-	const bool bNoOptimization = Transform.bAnimatable || MGFXMaterial->bAllAnimatable;
+	const bool bNoOptimization = Transform.bAnimatable || MGFXMaterial->bAllAnimatable || bIsPreviewMaterial;
 
 	// apply translate
 	if (bNoOptimization || !Transform.Location.IsZero())

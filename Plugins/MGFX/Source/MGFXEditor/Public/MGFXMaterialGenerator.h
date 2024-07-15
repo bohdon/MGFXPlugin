@@ -60,8 +60,8 @@ public:
 
 	FLinearColor CommentColor = FLinearColor(0.06f, 0.02f, 0.02f);
 
-	/** Generate the material. */
-	void Generate(UMGFXMaterial* InMGFXMaterial, UMaterial* OutputMaterial, bool bRecompile = true);
+	/** Generate the material. If bIsPreviewMaterial is true, no parameters will be optimized out to allow full interactive editing. */
+	void Generate(UMGFXMaterial* InMGFXMaterial, UMaterial* OutputMaterial, bool bRecompile = true, bool bInIsPreviewMaterial = false);
 
 	/** Add a generated warning comment to prevent user modification. */
 	void AddWarningComment();
@@ -126,6 +126,9 @@ public:
 protected:
 	/** The MGFXMaterial that is being used to generate a material. */
 	TObjectPtr<UMGFXMaterial> MGFXMaterial = nullptr;
+
+	/* When true, no parameters will be optimized out to allow full interactive editing. */
+	bool bIsPreviewMaterial = false;
 
 	/** The builder use to author the material. */
 	FMGFXMaterialBuilder Builder;

@@ -69,7 +69,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Advanced")
 	bool bAllAnimatable = false;
 
-	/** The generated material asset being edited. */
+	/** The target material asset being edited. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, AssetRegistrySearchable, Category = "Advanced")
 	TObjectPtr<UMaterial> Material;
 

@@ -47,21 +47,26 @@ public:
 	/** Return the MGFX Material asset being edited. */
 	UMGFXMaterial* GetMGFXMaterial() const { return MGFXMaterial; }
 
-	/** Return the material asset being generated. */
-	UMaterial* GetGeneratedMaterial() const;
+	/** Return the target material asset of the MGFX material. */
+	UMaterial* GetTargetMaterial() const;
 
-	/** Return the dynamic instance of the material asset being generated for previewing changes. */
-	UMaterialInstanceDynamic* GetPreviewMaterial() const { return PreviewMaterial; }
+	/** Return the base preview material that's being edited interactively. */
+	UMaterial* GetPreviewMaterial() const { return PreviewMaterial; }
+
+	/** Return the MID of the preview material that supports fast interactive parameter-only changes. */
+	UMaterialInstanceDynamic* GetPreviewMID() const { return PreviewMID; }
+
+	/** Regenerate the preview material, called whenever structural changes occur. */
+	void RegeneratePreviewMaterial();
+
+	/** Apply changes to the target material, regenerating it and recompiling. */
+	void Apply();
 
 	/** Fully regenerate the target material. */
-	void RegenerateMaterial();
-
-	void ToggleAutoRegenerate();
-
-	bool IsAutoRegenerateEnabled() const { return bAutoRegenerate; }
+	void RegenerateTargetMaterial();
 
 	/** Create a new material asset for the MGFX material. */
-	UMaterial* CreateMaterialAsset();
+	UMaterial* CreateTargetMaterialAsset();
 
 	FVector2D GetCanvasSize() const;
 
@@ -92,10 +97,10 @@ public:
 	virtual void NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FEditPropertyChain* PropertyThatChanged) override;
 
 	/** Set a scalar parameter value, either on the preview material if interactive, or directly on the generated material expressions. */
-	void SetMaterialScalarParameterValue(FName PropertyName, float Value, bool bInteractive) const;
+	void SetMaterialScalarParameterValue(FName ParameterName, float Value, bool bInteractive) const;
 
 	/** Set a vector parameter value, either on the preview material if interactive, or directly on the generated material expressions. */
-	void SetMaterialVectorParameterValue(FName PropertyName, FLinearColor Value, bool bInteractive) const;
+	void SetMaterialVectorParameterValue(FName ParameterName, FLinearColor Value, bool bInteractive) const;
 
 	// FEditorUndoClient
 	virtual bool MatchesContext(const FTransactionContext& InContext,
@@ -134,14 +139,14 @@ private:
 	/** The MGFX material asset being edited. */
 	TObjectPtr<UMGFXMaterial> MGFXMaterial;
 
-	/** The dynamic preview material to display in the editor. */
-	TObjectPtr<UMaterialInstanceDynamic> PreviewMaterial;
+	/** The hidden preview material which is generated automatically when node changes occur. */
+	TObjectPtr<UPreviewMaterial> PreviewMaterial;
+
+	/** The dynamic preview material to display in the editor, is updated interactively for parameter-value-only changes. */
+	TObjectPtr<UMaterialInstanceDynamic> PreviewMID;
 
 	/** The currently selected layers. */
 	TArray<TObjectPtr<UMGFXMaterialLayer>> SelectedLayers;
-
-	/** Automatically regenerate the material after every edit. */
-	bool bAutoRegenerate;
 
 	void BindCommands();
 	void RegisterToolbar();
@@ -154,7 +159,7 @@ private:
 	void OnMaterialAssetChanged();
 
 	/** Create or recreate the preview material instance dynamic. */
-	void UpdatePreviewMaterial();
+	void CreatePreviewMaterials();
 
 	/** Find an open material editor for a material. */
 	static IMaterialEditor* FindMaterialEditor(UMaterial* Material);

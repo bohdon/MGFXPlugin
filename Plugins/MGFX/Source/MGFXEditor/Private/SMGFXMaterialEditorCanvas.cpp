@@ -39,7 +39,7 @@ void SMGFXMaterialEditorCanvas::Construct(const FArguments& InArgs)
 	MGFXMaterialEditor.Pin()->OnLayerSelectionChangedEvent.AddSP(this, &SMGFXMaterialEditorCanvas::OnLayerSelectionChanged);
 	MGFXMaterialEditor.Pin()->OnPreviewMaterialChangedEvent.AddSP(this, &SMGFXMaterialEditorCanvas::OnPreviewMaterialChanged);
 
-	if (UMaterialInstanceDynamic* PreviewMaterial = MGFXMaterialEditor.Pin()->GetPreviewMaterial())
+	if (UMaterialInstanceDynamic* PreviewMaterial = MGFXMaterialEditor.Pin()->GetPreviewMID())
 	{
 		PreviewImageBrush.SetResourceObject(PreviewMaterial);
 	}

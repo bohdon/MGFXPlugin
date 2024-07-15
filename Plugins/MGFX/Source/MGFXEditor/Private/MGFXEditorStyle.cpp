@@ -23,7 +23,7 @@ FMGFXEditorStyle::FMGFXEditorStyle()
 #if WITH_EDITOR
 	// MGFXMaterial Editor
 	{
-		Set(TEXT("MGFXMaterialEditor.RegenerateMaterial"), new IMAGE_BRUSH_SVG("Starship/Common/Apply", Icon20x20));
+		Set(TEXT("MGFXMaterialEditor.Apply"), new IMAGE_BRUSH_SVG("Starship/Common/Apply", Icon20x20));
 
 		Set(TEXT("ArtboardBackground"), new FSlateColorBrush(FLinearColor(0.005f, 0.005f, 0.005f)));
 

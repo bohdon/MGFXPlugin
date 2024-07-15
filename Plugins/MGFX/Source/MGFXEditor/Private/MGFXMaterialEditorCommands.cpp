@@ -7,10 +7,8 @@
 
 void FMGFXMaterialEditorCommands::RegisterCommands()
 {
-	UI_COMMAND(RegenerateMaterial, "Regenerate", "Regenerate the target material",
+	UI_COMMAND(Apply, "Apply", "Apply changes to the target material",
 	           EUserInterfaceActionType::Button, FInputChord());
-	UI_COMMAND(ToggleAutoRegenerate, "Auto Regenerate", "Automatically regenerate the material after every edit",
-	           EUserInterfaceActionType::ToggleButton, FInputChord());
 
 	UI_COMMAND(ZoomTo50, "50%", "Zoom to 50%", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(ZoomTo100, "100%", "Zoom to 100%", EUserInterfaceActionType::Button, FInputChord());
