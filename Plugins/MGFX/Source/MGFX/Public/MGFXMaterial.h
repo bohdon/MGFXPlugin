@@ -36,7 +36,7 @@ public:
 	TEnumAsByte<EMaterialProperty> OutputProperty;
 
 	/** A constant color to use when not outputting any layer content to EmissiveColor. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Material")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Material", Meta = (EditCondition = "OutputProperty != MP_EmissiveColor"))
 	FLinearColor DefaultEmissiveColor;
 
 	/** The base size in pixels of the canvas, for determining shape locations and sizes. */

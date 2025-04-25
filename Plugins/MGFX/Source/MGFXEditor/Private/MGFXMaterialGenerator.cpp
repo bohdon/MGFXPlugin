@@ -7,6 +7,7 @@
 #include "MGFXMaterialFunctionHelpers.h"
 #include "MGFXPropertyMacros.h"
 #include "Materials/MaterialExpressionAppendVector.h"
+#include "Materials/MaterialExpressionComponentMask.h"
 #include "Materials/MaterialExpressionConstant.h"
 #include "Materials/MaterialExpressionConstant2Vector.h"
 #include "Materials/MaterialExpressionConstant3Vector.h"
@@ -67,6 +68,13 @@ void FMGFXMaterialGenerator::Generate(UMGFXMaterial* InMGFXMaterial, UMaterial* 
 		// connect layer output to final color
 		UMaterialExpressionNamedRerouteUsage* OutputUsageExp = Builder.CreateNamedRerouteUsage(Pos, Reroute_LayersOutput);
 		Builder.ConnectProperty(OutputUsageExp, "", MGFXMaterial->OutputProperty);
+
+		Pos += GridSize * FVector2D(16, 8);
+
+		// connect opacity output
+		UMaterialExpressionComponentMask* AlphaOutMaskExp = Builder.CreateComponentMaskA(Pos);
+		Builder.Connect(OutputUsageExp, AlphaOutMaskExp);
+		Builder.ConnectProperty(AlphaOutMaskExp, "", MP_Opacity);
 	}
 	else
 	{
@@ -164,36 +172,34 @@ void FMGFXMaterialGenerator::GenerateLayers()
 {
 	Pos = FVector2D(NodePosBaselineLeft, GridSize * 80);
 
-	// start with background color
-	UMaterialExpressionConstant4Vector* BGColorExp = Builder.Create<UMaterialExpressionConstant4Vector>(Pos);
-	SET_PROP(BGColorExp, Constant, FLinearColor::Black);
-
-	Pos.X += GridSize * 15;
-
 	// create base UVs
 	UMaterialExpressionNamedRerouteDeclaration* CanvasUVsDeclaration = Builder.FindNamedReroute(Reroute_CanvasUVs);
 	UMaterialExpressionNamedRerouteDeclaration* CanvasFilterWidthDeclaration = Builder.FindNamedReroute(Reroute_CanvasFilterWidth);
 	check(CanvasUVsDeclaration);
 	check(CanvasFilterWidthDeclaration);
 
-	const FMGFXMaterialUVsAndFilterWidth BGUVsInfo(CanvasUVsDeclaration, CanvasFilterWidthDeclaration);
-
-	const FMGFXMaterialLayerOutputs BaseLayerOutputs(BGUVsInfo, nullptr, BGColorExp);
+	const FMGFXMaterialUVsAndFilterWidth CanvasUVs(CanvasUVsDeclaration, CanvasFilterWidthDeclaration);
 
 	// generate all layers recursively
-	FMGFXMaterialLayerOutputs LayerOutputs = BaseLayerOutputs;
+	FMGFXMaterialLayerOutputs LayerOutputs = FMGFXMaterialLayerOutputs();
 	for (int32 Idx = MGFXMaterial->RootLayers.Num() - 1; Idx >= 0; --Idx)
 	{
 		const UMGFXMaterialLayer* ChildLayer = MGFXMaterial->RootLayers[Idx];
 
-		LayerOutputs = GenerateLayer(ChildLayer, BaseLayerOutputs.UVs, LayerOutputs);
+		LayerOutputs = GenerateLayer(ChildLayer, CanvasUVs, LayerOutputs);
 	}
+
+	Pos.X += GridSize * 15;
+
+	// unpremult after all merges
+	UMaterialExpressionMaterialFunctionCall* UnpremultExp = Builder.CreateFunction(Pos, FMGFXMaterialFunctions::GetUtil("Unpremult"));
+	Builder.Connect(LayerOutputs.VisualExp, UnpremultExp);
 
 	Pos.X += GridSize * 15;
 
 	// connect to layers output reroute
 	UMaterialExpressionNamedRerouteDeclaration* OutputRerouteExp = Builder.CreateNamedReroute(Pos, Reroute_LayersOutput, RGBARerouteColor);
-	Builder.Connect(LayerOutputs.VisualExp, OutputRerouteExp);
+	Builder.Connect(UnpremultExp, OutputRerouteExp);
 }
 
 FMGFXMaterialLayerOutputs FMGFXMaterialGenerator::GenerateLayer(const UMGFXMaterialLayer* Layer,
