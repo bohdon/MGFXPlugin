@@ -134,10 +134,10 @@ protected:
 	FMGFXMaterialBuilder Builder;
 
 	/** The current position to use for new nodes. */
-	FVector2D Pos;
+	FVector2D Pos = FVector2D::ZeroVector;
 
 public:
-	int32 GridSize;
+	int32 GridSize = 16;
 
 	/** Leftmost position where nodes for each layer should be aligned in the generated material. */
 	float NodePosBaselineLeft;

@@ -19,14 +19,14 @@
 #include "Materials/MaterialExpressionScalarParameter.h"
 #include "Materials/MaterialExpressionStaticBool.h"
 #include "Materials/MaterialExpressionSubtract.h"
+#include "Materials/MaterialExpressionTextureCoordinate.h"
 #include "Materials/MaterialExpressionVectorParameter.h"
 #include "Shapes/MGFXMaterialShape.h"
 #include "Shapes/MGFXMaterialShapeVisual.h"
 
 
 FMGFXMaterialGenerator::FMGFXMaterialGenerator()
-	: GridSize(16),
-	  NodePosBaselineLeft(GridSize * -64),
+	: NodePosBaselineLeft(GridSize * -64),
 	  Reroute_CanvasUVs(TEXT("CanvasUVs")),
 	  Reroute_CanvasFilterWidth(TEXT("CanvasFilterWidth")),
 	  Reroute_LayersOutput(TEXT("LayersOutput")),
@@ -120,17 +120,15 @@ void FMGFXMaterialGenerator::AddUVsBoilerplate()
 
 	Pos.X += GridSize * 15;
 
-	// create GetUserInterfaceUVs material function
-	UMaterialExpressionMaterialFunctionCall* InterfaceUVsExp = Builder.CreateFunction(
-		Pos + FVector2D(0, GridSize * 8),
-		TSoftObjectPtr<UMaterialFunctionInterface>(FString("/Engine/Functions/UserInterface/GetUserInterfaceUV.GetUserInterfaceUV")));
+	// create canvas tex cords with default UVs (for UI these will be 9-sliced)
+	UMaterialExpressionTextureCoordinate* TexCoordExp = Builder.Create<UMaterialExpressionTextureCoordinate>(Pos + FVector2D(0, GridSize * 8));
 
 	Pos.X += GridSize * 15;
 
-	// multiply Normalized UV by canvas size
+	// scale UVs to canvas size so all shapes can operate in canvas-dimensions
 	UMaterialExpressionMultiply* MultiplyExp = Builder.Create<UMaterialExpressionMultiply>(Pos);
 	Builder.Connect(CanvasAppendExp, "", MultiplyExp, "A");
-	Builder.Connect(InterfaceUVsExp, "Normalized UV", MultiplyExp, "B");
+	Builder.Connect(TexCoordExp, "", MultiplyExp, "B");
 
 	Pos.X += GridSize * 15;
 
