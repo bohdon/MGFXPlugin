@@ -22,7 +22,7 @@ public:
 	FVector2f PointA = FVector2f(0.f, 0.f);
 
 	UPROPERTY(EditAnywhere, Category = "Line")
-	FVector2f PointB = FVector2f(100.f, 0.f);
+	FVector2f PointB = FVector2f(100.f, 100.f);
 
 #if WITH_EDITOR
 	virtual bool HasBounds() const override { return true; }

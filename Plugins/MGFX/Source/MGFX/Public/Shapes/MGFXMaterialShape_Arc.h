@@ -23,11 +23,11 @@ public:
 
 	/** The width of the arc. */
 	UPROPERTY(EditAnywhere, Category = "Arc", Meta = (ClampMin = 0))
-	float Width = 3.f;
+	float Width = 5.f;
 
 	/** The sweep of the arc. */
 	UPROPERTY(EditAnywhere, Category = "Arc", Meta = (ClampMin = 0, ClampMax = 1))
-	float Sweep = 0.5f;
+	float Sweep = 0.75f;
 
 #if WITH_EDITOR
 	virtual bool HasBounds() const override { return true; }
